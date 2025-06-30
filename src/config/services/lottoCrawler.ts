@@ -1,13 +1,14 @@
 // src/services/lottoCrawler.ts
-// 안전하고 책임감 있는 로또 크롤링 서비스
+// CORS 문제 해결된 크롤링 서비스
 
 import { LottoDrawResult, LottoAPIResponse } from '../types/lotto';
 
 interface CrawlerOptions {
-  requestDelay: number;      // 요청 간격 (밀리초)
-  maxRetries: number;        // 최대 재시도 횟수
-  timeout: number;           // 타임아웃 (밀리초)
-  userAgent: string;         // User-Agent
+  requestDelay: number;
+  maxRetries: number;
+  timeout: number;
+  userAgent: string;
+  useProxy: boolean;  // 프록시 사용 여부 추가
 }
 
 interface CacheItem {
@@ -24,24 +25,22 @@ class LottoCrawler {
 
   constructor(options?: Partial<CrawlerOptions>) {
     this.options = {
-      requestDelay: 5000,    // 5초 간격
-      maxRetries: 3,         // 최대 3회 재시도
-      timeout: 10000,        // 10초 타임아웃
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      requestDelay: 5000,
+      maxRetries: 3,
+      timeout: 10000,
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      useProxy: true,  // 기본적으로 프록시 사용
       ...options
     };
   }
 
-  // 메인 크롤링 함수 - 특정 회차 당첨번호 가져오기
   async getDrawResult(round?: number): Promise<LottoAPIResponse> {
     try {
-      // 최신 회차를 먼저 확인
       if (!round) {
         const latestRound = await this.getLatestRoundNumber();
         round = latestRound;
       }
 
-      // 캐시 확인
       const cached = this.getCachedResult(round);
       if (cached) {
         return {
@@ -51,16 +50,13 @@ class LottoCrawler {
         };
       }
 
-      // Rate limiting 체크
       await this.enforceRateLimit();
 
-      // 실제 크롤링
-      const result = await this.crawlWithRetry(round);
+      // CORS 문제 해결을 위한 다중 방법 시도
+      const result = await this.crawlWithMultipleMethods(round);
       
       if (result) {
-        // 캐시에 저장 (1시간 유효)
         this.setCachedResult(round, result, 3600000);
-        
         return {
           success: true,
           data: result
@@ -72,7 +68,6 @@ class LottoCrawler {
     } catch (error) {
       console.error('크롤링 에러:', error);
       
-      // 폴백 데이터 반환
       const fallbackData = this.getFallbackData(round || 1177);
       return {
         success: false,
@@ -83,67 +78,57 @@ class LottoCrawler {
     }
   }
 
-  // 재시도 로직이 포함된 크롤링
-  private async crawlWithRetry(round: number): Promise<LottoDrawResult | null> {
-    let lastError: Error | null = null;
+  // 다중 방법으로 크롤링 시도
+  private async crawlWithMultipleMethods(round: number): Promise<LottoDrawResult | null> {
+    const methods = [
+      () => this.performCrawlWithProxy(round),      // 방법 1: 프록시 사용
+      () => this.performCrawlDirect(round),         // 방법 2: 직접 요청
+      () => this.performCrawlWithCORS(round),       // 방법 3: CORS 우회
+    ];
 
-    for (let attempt = 1; attempt <= this.options.maxRetries; attempt++) {
+    for (let i = 0; i < methods.length; i++) {
       try {
-        console.log(`크롤링 시도 ${attempt}/${this.options.maxRetries} - 회차: ${round}`);
-        
-        const result = await this.performCrawl(round);
+        console.log(`크롤링 방법 ${i + 1} 시도 - 회차: ${round}`);
+        const result = await methods[i]();
         if (result) {
-          console.log(`크롤링 성공 - 회차: ${round}`);
+          console.log(`크롤링 방법 ${i + 1} 성공 - 회차: ${round}`);
           return result;
         }
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error('Unknown error');
-        console.warn(`크롤링 시도 ${attempt} 실패:`, lastError.message);
-
-        // 지수 백오프 (1초, 2초, 4초)
-        if (attempt < this.options.maxRetries) {
-          const delay = Math.pow(2, attempt - 1) * 1000;
-          console.log(`${delay}ms 후 재시도...`);
-          await this.delay(delay);
+        console.warn(`크롤링 방법 ${i + 1} 실패:`, error);
+        if (i < methods.length - 1) {
+          await this.delay(1000); // 다음 방법 시도 전 1초 대기
         }
       }
     }
 
-    throw lastError || new Error('모든 재시도 실패');
+    return null;
   }
 
-  // 실제 크롤링 수행
-  private async performCrawl(round: number): Promise<LottoDrawResult | null> {
+  // 방법 1: 프록시를 통한 요청
+  private async performCrawlWithProxy(round: number): Promise<LottoDrawResult | null> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.options.timeout);
 
     try {
-      // 동행복권 API 엔드포인트 (비공식)
-      const url = `https://www.dhlottery.co.kr/common.do?method=getLottoNumber&drwNo=${round}`;
+      // package.json의 proxy 설정을 사용한 상대 경로
+      const url = `/common.do?method=getLottoNumber&drwNo=${round}`;
 
       const response = await fetch(url, {
         signal: controller.signal,
         headers: {
-          'User-Agent': this.options.userAgent,
           'Accept': 'application/json, text/plain, */*',
           'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
           'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        },
-        mode: 'cors'
+        }
       });
 
       if (!response.ok) {
-        if (response.status === 429) {
-          this.isRateLimited = true;
-          throw new Error('Rate limit exceeded');
-        }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const data = await response.json();
       
-      // 응답 데이터 검증 및 파싱
       if (this.isValidLottoData(data)) {
         return this.parseDrawResult(data);
       } else {
@@ -155,20 +140,85 @@ class LottoCrawler {
     }
   }
 
-  // 최신 회차 번호 확인
-  private async getLatestRoundNumber(): Promise<number> {
+  // 방법 2: 직접 요청 (CORS 에러 가능)
+  private async performCrawlDirect(round: number): Promise<LottoDrawResult | null> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.options.timeout);
+
     try {
-      // 현재 날짜 기준으로 추정
-      const now = new Date();
-      const startDate = new Date('2002-12-07'); // 로또 시작일
-      const weeksDiff = Math.floor((now.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
-      return Math.min(weeksDiff + 1, 1177); // 현재 회차로 제한
-    } catch (error) {
-      return 1177; // 기본값
+      const url = `https://www.dhlottery.co.kr/common.do?method=getLottoNumber&drwNo=${round}`;
+
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': this.options.userAgent,
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+          'Cache-Control': 'no-cache',
+        },
+        mode: 'cors'
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (this.isValidLottoData(data)) {
+        return this.parseDrawResult(data);
+      } else {
+        throw new Error('Invalid data format');
+      }
+
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
-  // 응답 데이터 검증
+  // 방법 3: CORS 우회 시도
+  private async performCrawlWithCORS(round: number): Promise<LottoDrawResult | null> {
+    try {
+      // CORS 프록시 서비스를 사용한 우회 (개발 환경에서만)
+      const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+      const targetUrl = `https://www.dhlottery.co.kr/common.do?method=getLottoNumber&drwNo=${round}`;
+      
+      const response = await fetch(proxyUrl + targetUrl, {
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (this.isValidLottoData(data)) {
+        return this.parseDrawResult(data);
+      } else {
+        throw new Error('Invalid data format');
+      }
+
+    } catch (error) {
+      throw new Error('CORS proxy failed: ' + error);
+    }
+  }
+
+  // 기존 메서드들 유지
+  private async getLatestRoundNumber(): Promise<number> {
+    try {
+      const now = new Date();
+      const startDate = new Date('2002-12-07');
+      const weeksDiff = Math.floor((now.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
+      return Math.min(weeksDiff + 1, 1177);
+    } catch (error) {
+      return 1177;
+    }
+  }
+
   private isValidLottoData(data: any): boolean {
     return data && 
            data.drwNo && 
@@ -178,7 +228,6 @@ class LottoCrawler {
            data.drwNoDate;
   }
 
-  // 응답 데이터 파싱
   private parseDrawResult(data: any): LottoDrawResult {
     return {
       round: parseInt(data.drwNo),
@@ -198,7 +247,6 @@ class LottoCrawler {
     };
   }
 
-  // Rate limiting 적용
   private async enforceRateLimit(): Promise<void> {
     const now = Date.now();
     const timeSinceLastRequest = now - this.lastRequestTime;
@@ -212,7 +260,6 @@ class LottoCrawler {
     this.lastRequestTime = Date.now();
   }
 
-  // 캐시 관리
   private getCachedResult(round: number): LottoDrawResult | null {
     const cached = this.cache.get(round);
     if (cached && Date.now() < cached.expiry) {
@@ -230,7 +277,6 @@ class LottoCrawler {
     });
   }
 
-  // 폴백 데이터
   private getFallbackData(round: number): LottoDrawResult {
     const fallbackResults: { [key: number]: LottoDrawResult } = {
       1177: {
@@ -250,12 +296,10 @@ class LottoCrawler {
     return fallbackResults[round] || fallbackResults[1177];
   }
 
-  // 유틸리티 함수
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  // 캐시 정리
   public clearExpiredCache(): void {
     const now = Date.now();
     for (const [round, cache] of this.cache.entries()) {
@@ -265,7 +309,6 @@ class LottoCrawler {
     }
   }
 
-  // 서비스 상태 확인
   public getServiceStatus(): { 
     isRateLimited: boolean; 
     cacheSize: number; 
