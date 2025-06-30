@@ -4,7 +4,7 @@
   "description": "React and TypeScript example starter project",
   "keywords": [
     "typescript",
-    "react", 
+    "react",
     "starter"
   ],
   "main": "src/index.tsx",
@@ -21,7 +21,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build", 
+    "build": "react-scripts build",
     "test": "react-scripts test --env=jsdom",
     "eject": "react-scripts eject"
   },
@@ -33,4 +33,3 @@
   ],
   "proxy": "https://www.dhlottery.co.kr"
 }
-"proxy": "https://www.dhlottery.co.kr"
