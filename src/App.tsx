@@ -5,6 +5,8 @@ import Check from "./components/pages/Check";
 import Stats from "./components/pages/Stats";
 import Purchase from "./components/pages/Purchase";
 import Settings from "./components/pages/Settings";
+import { lottoDataManager } from "./services/lottoDataManager";
+import { LottoDrawResult } from "./types/lotto";
 
 interface PurchaseItem {
   id: number;
@@ -12,9 +14,9 @@ interface PurchaseItem {
   strategy: string;
   date: string;
   checked: boolean;
-  status: "saved" | "planned" | "purchased"; // 추가
-  memo?: string; // 추가
-  purchaseDate?: string; // 추가
+  status: "saved" | "favorite" | "checked";
+  memo?: string;
+  purchaseDate?: string;
 }
 
 const LottoApp = () => {
@@ -22,20 +24,21 @@ const LottoApp = () => {
   const [currentMenu, setCurrentMenu] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [purchaseHistory, setPurchaseHistory] = useState<PurchaseItem[]>([]);
-
-  // 샘플 과거 당첨번호 데이터
-  const pastWinningNumbers = [
-    [3, 7, 15, 16, 19, 43, 21], // 최신 회차 (1177회)
-    [1, 5, 12, 18, 26, 32, 44],
-    [3, 7, 15, 22, 28, 35, 41],
-    [2, 9, 14, 21, 27, 33, 45],
-    [4, 11, 17, 24, 31, 38, 42],
-    [6, 13, 19, 25, 29, 36, 43],
-    [8, 16, 20, 23, 30, 37, 40],
-    [10, 12, 18, 26, 32, 39, 44],
-    [1, 7, 14, 21, 28, 34, 41],
-    [5, 11, 17, 24, 30, 37, 43],
-  ];
+  
+  // 새로운 상태: 실시간 당첨번호 데이터
+  const [pastWinningNumbers, setPastWinningNumbers] = useState<number[][]>([
+    [3, 7, 15, 16, 19, 43, 21], // 기본값 (폴백)
+  ]);
+  const [isDataLoading, setIsDataLoading] = useState(true);
+  const [dataStatus, setDataStatus] = useState<{
+    lastUpdate: Date | null;
+    isRealTime: boolean;
+    source: 'crawled' | 'fallback';
+  }>({
+    lastUpdate: null,
+    isRealTime: false,
+    source: 'fallback'
+  });
 
   // 메뉴 아이템 배열
   const menuItems = [
@@ -47,7 +50,67 @@ const LottoApp = () => {
     { id: "settings", name: "⚙️ 설정" },
   ];
 
-  // 로또 번호 생성 로직들 (기존과 동일)
+  // 실시간 당첨번호 데이터 로드
+  useEffect(() => {
+    loadLottoData();
+  }, []);
+
+  const loadLottoData = async () => {
+    setIsDataLoading(true);
+    try {
+      console.log('로또 데이터 로딩 시작...');
+      
+      // 최신 10회차 데이터 가져오기
+      const historyResponse = await lottoDataManager.getHistory(10);
+      
+      if (historyResponse.success && historyResponse.data) {
+        // 기존 형식으로 변환 (6개 당첨번호 + 1개 보너스번호)
+        const formattedData = historyResponse.data.map((result: LottoDrawResult) => [
+          ...result.numbers,
+          result.bonusNumber
+        ]);
+
+        setPastWinningNumbers(formattedData);
+        setDataStatus({
+          lastUpdate: new Date(),
+          isRealTime: true,
+          source: 'crawled'
+        });
+        
+        console.log('실시간 데이터 로드 완료:', formattedData.length, '회차');
+      } else {
+        throw new Error(historyResponse.error || '데이터 로드 실패');
+      }
+    } catch (error) {
+      console.error('데이터 로드 실패:', error);
+      setDataStatus({
+        lastUpdate: new Date(),
+        isRealTime: false,
+        source: 'fallback'
+      });
+      
+      // 폴백 데이터는 이미 기본값으로 설정됨
+    } finally {
+      setIsDataLoading(false);
+    }
+  };
+
+  // 수동 데이터 새로고침
+  const refreshData = async () => {
+    try {
+      const result = await lottoDataManager.forceUpdate();
+      if (result.success) {
+        await loadLottoData();
+        alert('데이터가 업데이트되었습니다!');
+      } else {
+        alert('데이터 업데이트에 실패했습니다: ' + result.message);
+      }
+    } catch (error) {
+      alert('데이터 새로고침 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 로또 번호 생성 로직들 (기존과 동일하지만 실시간 데이터 사용)
   const getMostFrequentNumbers = () => {
     const frequency: { [key: number]: number } = {};
     pastWinningNumbers.forEach((numbers) => {
@@ -83,7 +146,7 @@ const LottoApp = () => {
     return Array.from(numbers).sort((a, b) => a - b);
   };
 
-  // 내번호함 관련 함수들 (수정됨)
+  // 내번호함 관련 함수들 (기존과 동일)
   const addToPurchaseHistory = (numbers: number[], strategy: string) => {
     const newPurchase: PurchaseItem = {
       id: Date.now(),
@@ -91,7 +154,7 @@ const LottoApp = () => {
       strategy,
       date: new Date().toLocaleDateString(),
       checked: false,
-      status: "saved", // 기본값: 저장 상태
+      status: "saved",
       memo: "",
     };
     setPurchaseHistory((prev) => [newPurchase, ...prev]);
@@ -111,8 +174,9 @@ const LottoApp = () => {
   const exportData = () => {
     const data = {
       purchaseHistory,
+      dataStatus,
       exportDate: new Date().toISOString(),
-      version: "1.0.0",
+      version: "2.0.0",
     };
 
     const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -140,33 +204,40 @@ const LottoApp = () => {
 
   // 컴포넌트 렌더링
   const renderContent = () => {
+    const commonProps = {
+      pastWinningNumbers,
+      isDataLoading,
+      dataStatus
+    };
+
     switch (currentMenu) {
       case "dashboard":
         return (
           <Dashboard
-            pastWinningNumbers={pastWinningNumbers}
+            {...commonProps}
             onMenuChange={setCurrentMenu}
             generate1stGradeNumbers={generate1stGradeNumbers}
+            onRefreshData={refreshData}
           />
         );
       case "recommend":
         return (
           <Recommend
-            pastWinningNumbers={pastWinningNumbers}
+            {...commonProps}
             onAddToPurchaseHistory={addToPurchaseHistory}
           />
         );
       case "check":
-        return <Check pastWinningNumbers={pastWinningNumbers} />;
+        return <Check {...commonProps} />;
       case "stats":
-        return <Stats pastWinningNumbers={pastWinningNumbers} />;
+        return <Stats {...commonProps} />;
       case "purchase":
         return (
           <Purchase
             purchaseHistory={purchaseHistory}
             onDelete={deletePurchaseItem}
             onCheck={checkPurchaseItem}
-            onAdd={addToPurchaseHistory} // 새로 추가
+            onAdd={addToPurchaseHistory}
             pastWinningNumbers={pastWinningNumbers}
           />
         );
@@ -176,14 +247,17 @@ const LottoApp = () => {
             onDataExport={exportData}
             onDataImport={importData}
             onDataReset={resetData}
+            onRefreshData={refreshData}
+            dataStatus={dataStatus}
           />
         );
       default:
         return (
           <Dashboard
-            pastWinningNumbers={pastWinningNumbers}
+            {...commonProps}
             onMenuChange={setCurrentMenu}
             generate1stGradeNumbers={generate1stGradeNumbers}
+            onRefreshData={refreshData}
           />
         );
     }
@@ -226,10 +300,37 @@ const LottoApp = () => {
         >
           ☰
         </button>
-        <h1 style={{ fontSize: "16px", fontWeight: "bold", margin: "0" }}>
-          로또 6/45
-        </h1>
-        <div style={{ width: "32px" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <h1 style={{ fontSize: "16px", fontWeight: "bold", margin: "0" }}>
+            로또 6/45
+          </h1>
+          {/* 데이터 상태 인디케이터 */}
+          <div
+            style={{
+              width: "8px",
+              height: "8px",
+              borderRadius: "50%",
+              backgroundColor: dataStatus.isRealTime ? "#10b981" : "#f59e0b",
+              animation: isDataLoading ? "pulse 2s infinite" : "none"
+            }}
+            title={dataStatus.isRealTime ? "실시간 데이터" : "오프라인 데이터"}
+          />
+        </div>
+        <button
+          onClick={refreshData}
+          style={{
+            padding: "6px",
+            backgroundColor: "transparent",
+            border: "none",
+            color: "white",
+            cursor: "pointer",
+            borderRadius: "4px",
+            fontSize: "14px",
+          }}
+          title="데이터 새로고침"
+        >
+          🔄
+        </button>
       </div>
 
       {/* 사이드바 */}
@@ -329,13 +430,55 @@ const LottoApp = () => {
                   <span style={{ fontWeight: "500" }}>{item.name}</span>
                 </button>
               ))}
+              
+              {/* 데이터 상태 정보 */}
+              <div style={{ 
+                marginTop: "16px", 
+                padding: "8px", 
+                backgroundColor: "#f3f4f6", 
+                borderRadius: "6px",
+                fontSize: "12px"
+              }}>
+                <div style={{ color: "#6b7280", marginBottom: "4px" }}>
+                  데이터 상태
+                </div>
+                <div style={{ 
+                  color: dataStatus.isRealTime ? "#059669" : "#d97706",
+                  fontWeight: "500"
+                }}>
+                  {dataStatus.isRealTime ? "🟢 실시간" : "🟡 오프라인"}
+                </div>
+                {dataStatus.lastUpdate && (
+                  <div style={{ color: "#9ca3af", marginTop: "2px" }}>
+                    {dataStatus.lastUpdate.toLocaleTimeString()}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
       )}
 
       {/* 메인 콘텐츠 */}
-      <div style={{ paddingBottom: "56px" }}>{renderContent()}</div>
+      <div style={{ paddingBottom: "56px" }}>
+        {isDataLoading && (
+          <div style={{
+            position: "fixed",
+            top: "60px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            backgroundColor: "#2563eb",
+            color: "white",
+            padding: "8px 16px",
+            borderRadius: "6px",
+            fontSize: "12px",
+            zIndex: 40
+          }}>
+            📡 데이터 업데이트 중...
+          </div>
+        )}
+        {renderContent()}
+      </div>
 
       {/* 푸터 */}
       <div
@@ -355,6 +498,11 @@ const LottoApp = () => {
         }}
       >
         로또는 확률게임입니다. 과도한 구매는 가계에 부담이 됩니다.
+        {dataStatus.source === 'crawled' && (
+          <span style={{ color: "#059669", marginLeft: "8px" }}>
+            • 실시간 연동
+          </span>
+        )}
       </div>
 
       {/* 애니메이션 CSS */}
@@ -363,6 +511,10 @@ const LottoApp = () => {
           @keyframes spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
+          }
+          @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
           }
         `}
       </style>
