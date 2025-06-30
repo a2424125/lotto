@@ -1,116 +1,227 @@
 // src/services/lottoDataManager.ts
-// 로또 데이터 통합 관리 서비스
+// public 폴더의 CSV 파일을 읽는 로또 데이터 매니저
 
-import LottoCrawler from './lottoCrawler';
 import { LottoDrawResult, LottoAPIResponse, LottoHistoryAPIResponse } from '../types/lotto';
 
 class LottoDataManager {
-  private crawler: LottoCrawler;
-  private updateInterval: number = 30 * 60 * 1000; // 30분마다 업데이트
-  private lastUpdateTime: number = 0;
+  private lastUpdateTime: number = Date.now();
   private isUpdating: boolean = false;
+  private csvData: LottoDrawResult[] = [];
+  private isDataLoaded: boolean = false;
 
   constructor() {
-    this.crawler = new LottoCrawler({
-      requestDelay: 5000,  // 5초 간격
-      maxRetries: 3,       // 최대 3회 재시도
-      timeout: 15000       // 15초 타임아웃
-    });
-
-    // 페이지 로드 시 한 번 업데이트
+    console.log('🎯 로또 데이터 매니저 시작 (CSV 파일 직접 읽기)');
+    console.log('📂 CSV 파일 위치: public/6_45_Lotto.csv');
     this.initializeData();
-    
-    // 주기적 업데이트 설정
-    this.scheduleUpdates();
   }
 
-  // 초기 데이터 로드
+  // CSV 파일에서 데이터 로드
   private async initializeData(): Promise<void> {
-    console.log('로또 데이터 초기화 시작...');
+    console.log('📂 public 폴더에서 CSV 파일 로딩 중...');
+    
     try {
-      await this.updateLatestData();
-      console.log('로또 데이터 초기화 완료');
+      await this.loadCSVData();
+      console.log('✅ CSV 데이터 로딩 완료!');
+      console.log(`📊 총 ${this.csvData.length}개 회차 데이터 로드됨`);
+      
+      if (this.csvData.length > 0) {
+        const latest = this.csvData[0];
+        console.log(`🎲 최신 ${latest.round}회차 당첨번호:`, 
+          latest.numbers.join(', '), '+ 보너스', latest.bonusNumber);
+        console.log(`📈 데이터 범위: ${this.csvData[this.csvData.length - 1].round}회 ~ ${latest.round}회`);
+      }
+      
+      this.isDataLoaded = true;
     } catch (error) {
-      console.error('초기 데이터 로드 실패:', error);
+      console.error('❌ CSV 데이터 로딩 실패:', error);
+      console.warn('💡 해결 방법: public 폴더에 6_45_Lotto.csv 파일을 복사하세요');
+      this.isDataLoaded = false;
     }
+  }
+
+  // CSV 파일 읽기 및 파싱
+  private async loadCSVData(): Promise<void> {
+    try {
+      // public 폴더의 CSV 파일 읽기
+      const response = await fetch('/6_45_Lotto.csv');
+      
+      if (!response.ok) {
+        throw new Error(`CSV 파일을 찾을 수 없습니다: ${response.status}`);
+      }
+      
+      const csvContent = await response.text();
+      console.log('📄 CSV 파일 크기:', Math.round(csvContent.length / 1024), 'KB');
+      
+      // Papaparse 라이브러리로 CSV 파싱
+      const Papa = await this.getPapaparse();
+      
+      const parsed = Papa.parse(csvContent, {
+        header: true,
+        dynamicTyping: true,
+        skipEmptyLines: true,
+        transformHeader: (header: string) => header.trim()
+      });
+
+      if (parsed.errors.length > 0) {
+        console.warn('⚠️ CSV 파싱 경고:', parsed.errors.slice(0, 3)); // 처음 3개만 표시
+      }
+
+      console.log('🔧 CSV 파싱 완료 -', parsed.data.length, '행 처리됨');
+
+      // 데이터 변환 및 정렬
+      this.csvData = parsed.data
+        .filter((row: any) => row.Draw && row.Date && row['Winning Number 1']) // 유효한 행만
+        .map((row: any) => this.convertRowToLottoResult(row))
+        .filter(result => result.round > 0 && result.numbers.length === 6) // 완전한 데이터만
+        .sort((a, b) => b.round - a.round); // 최신순 정렬
+
+      console.log(`✅ ${this.csvData.length}개 회차 유효한 데이터 변환 완료`);
+
+    } catch (error) {
+      console.error('❌ CSV 파일 처리 중 오류:', error);
+      throw error;
+    }
+  }
+
+  // Papaparse 라이브러리 동적 로드
+  private async getPapaparse(): Promise<any> {
+    try {
+      // CDN에서 Papaparse 로드
+      if (!(window as any).Papa) {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js';
+        
+        return new Promise((resolve, reject) => {
+          script.onload = () => resolve((window as any).Papa);
+          script.onerror = () => reject(new Error('Papaparse 로드 실패'));
+          document.head.appendChild(script);
+        });
+      }
+      return (window as any).Papa;
+    } catch (error) {
+      console.error('Papaparse 로드 실패:', error);
+      throw error;
+    }
+  }
+
+  // CSV 행을 LottoDrawResult로 변환
+  private convertRowToLottoResult(row: any): LottoDrawResult {
+    // 당첨번호 6개 추출 및 정렬
+    const numbers = [
+      row['Winning Number 1'],
+      row['2'],
+      row['3'], 
+      row['4'],
+      row['5'],
+      row['6']
+    ].filter(num => num && num > 0 && num <= 45)
+     .sort((a, b) => a - b);
+
+    // 날짜 형식 정리 (YYYY-MM-DD)
+    let formattedDate = row.Date;
+    if (formattedDate && !formattedDate.includes('-')) {
+      // 다른 형식의 날짜를 YYYY-MM-DD로 변환
+      const date = new Date(formattedDate);
+      if (!isNaN(date.getTime())) {
+        formattedDate = date.toISOString().split('T')[0];
+      }
+    }
+
+    return {
+      round: parseInt(row.Draw) || 0,
+      date: formattedDate || '',
+      numbers: numbers,
+      bonusNumber: parseInt(row['Bonus Number']) || 0,
+      totalSales: row['Division 1 Prize'] && row['Division 1 Winners'] ? 
+        row['Division 1 Prize'] * row['Division 1 Winners'] : undefined,
+      jackpotWinners: parseInt(row['Division 1 Winners']) || 0,
+      jackpotPrize: parseInt(row['Division 1 Prize']) || 0
+    };
   }
 
   // 최신 당첨번호 가져오기
   async getLatestResult(): Promise<LottoAPIResponse> {
-    // 최근 업데이트가 30분 이내면 캐시된 데이터 사용
-    const now = Date.now();
-    if (now - this.lastUpdateTime < this.updateInterval && !this.isUpdating) {
-      console.log('캐시된 최신 데이터 사용');
-    } else {
-      await this.updateLatestData();
+    console.log('📡 최신 당첨번호 요청 처리 중...');
+
+    if (!this.isDataLoaded) {
+      await this.initializeData();
     }
 
-    return await this.crawler.getDrawResult();
+    if (this.csvData.length > 0) {
+      const latestData = this.csvData[0];
+      console.log(`✅ ${latestData.round}회차 당첨번호 반환:`, latestData.numbers.join(', '));
+      
+      return {
+        success: true,
+        data: latestData,
+        message: `${latestData.round}회차 실제 당첨번호 (CSV 데이터 913회차 분량)`
+      };
+    } else {
+      console.warn('⚠️ CSV 데이터가 없어 폴백 데이터 사용');
+      return {
+        success: false,
+        data: this.getFallbackData(),
+        error: 'CSV 데이터 로드 실패',
+        message: 'public 폴더에 6_45_Lotto.csv 파일을 복사해주세요'
+      };
+    }
   }
 
   // 특정 회차 당첨번호 가져오기
   async getResultByRound(round: number): Promise<LottoAPIResponse> {
-    return await this.crawler.getDrawResult(round);
-  }
+    console.log(`🎯 ${round}회차 당첨번호 요청`);
 
-  // 과거 당첨번호 목록 가져오기 (배치 처리)
-  async getHistory(count: number = 10): Promise<LottoHistoryAPIResponse> {
-    try {
-      console.log(`과거 ${count}회차 데이터 가져오기 시작...`);
-      
-      const results: LottoDrawResult[] = [];
-      const latestResult = await this.getLatestResult();
-      
-      if (latestResult.success && latestResult.data) {
-        const latestRound = latestResult.data.round;
-        
-        // 배치 처리로 과거 데이터 수집 (병렬 처리 제한)
-        const batchSize = 3; // 동시에 3개씩만 요청
-        for (let i = 0; i < count; i += batchSize) {
-          const batch: Promise<LottoAPIResponse>[] = [];
-          
-          for (let j = 0; j < batchSize && i + j < count; j++) {
-            const round = latestRound - (i + j);
-            batch.push(this.getResultByRound(round));
-          }
+    if (!this.isDataLoaded) {
+      await this.initializeData();
+    }
 
-          // 배치 실행
-          const batchResults = await Promise.allSettled(batch);
-          
-          for (const result of batchResults) {
-            if (result.status === 'fulfilled' && result.value.success && result.value.data) {
-              results.push(result.value.data);
-            }
-          }
-
-          // 배치 간 딜레이 (서버 부하 방지)
-          if (i + batchSize < count) {
-            console.log(`배치 완료, 3초 대기 중... (${i + batchSize}/${count})`);
-            await this.delay(3000);
-          }
-        }
-
-        // 회차순으로 정렬
-        results.sort((a, b) => b.round - a.round);
-
-        return {
-          success: true,
-          data: results,
-          message: `${results.length}개 회차 데이터 수집 완료`
-        };
-      }
-
-      throw new Error('최신 데이터를 가져올 수 없음');
-
-    } catch (error) {
-      console.error('과거 데이터 수집 실패:', error);
-      
-      // 폴백: 하드코딩된 데이터 반환
+    const result = this.csvData.find(data => data.round === round);
+    
+    if (result) {
+      console.log(`✅ ${round}회차 데이터 발견:`, result.numbers.join(', '));
+      return {
+        success: true,
+        data: result,
+        message: `${round}회차 실제 당첨번호 (CSV 데이터)`
+      };
+    } else {
+      console.warn(`⚠️ ${round}회차 데이터 없음 (CSV 범위: ${this.getDataRange()})`);
       return {
         success: false,
-        data: this.getFallbackHistoryData(count),
-        error: error instanceof Error ? error.message : '알 수 없는 오류',
-        message: '폴백 데이터 사용'
+        error: '해당 회차 데이터 없음',
+        message: `${round}회차 데이터가 CSV에 없습니다`
+      };
+    }
+  }
+
+  // 과거 당첨번호 목록 가져오기
+  async getHistory(count: number = 10): Promise<LottoHistoryAPIResponse> {
+    console.log(`📊 과거 ${count}회차 당첨번호 요청`);
+
+    if (!this.isDataLoaded) {
+      await this.initializeData();
+    }
+
+    const results = this.csvData.slice(0, count);
+    
+    if (results.length > 0) {
+      console.log(`✅ ${results.length}개 회차 CSV 데이터 반환`);
+      console.log('📈 최신 3회차:', 
+        results.slice(0, 3).map(r => `${r.round}회차: [${r.numbers.join(',')}]`).join(' | ')
+      );
+      
+      return {
+        success: true,
+        data: results,
+        message: `${results.length}개 회차 실제 당첨번호 (913회차 CSV 데이터)`
+      };
+    } else {
+      console.warn('⚠️ CSV 데이터가 없어 폴백 데이터 사용');
+      return {
+        success: false,
+        data: [this.getFallbackData()],
+        error: 'CSV 데이터 없음',
+        message: 'public 폴더에 6_45_Lotto.csv 파일을 복사해주세요'
       };
     }
   }
@@ -122,49 +233,50 @@ class LottoDataManager {
     estimatedJackpot: number;
     daysUntilDraw: number;
   }> {
-    try {
-      const latestResult = await this.getLatestResult();
-      
-      if (latestResult.success && latestResult.data) {
-        const nextRound = latestResult.data.round + 1;
-        const nextDate = this.getNextSaturday();
-        const daysUntil = this.getDaysUntilNextSaturday();
-        
-        return {
-          round: nextRound,
-          date: nextDate,
-          estimatedJackpot: 3500000000, // 35억 (추정)
-          daysUntilDraw: daysUntil
-        };
-      }
-    } catch (error) {
-      console.error('다음 회차 정보 계산 실패:', error);
+    if (!this.isDataLoaded) {
+      await this.initializeData();
     }
 
-    // 폴백
+    let nextRound = 1179; // 기본값
+    if (this.csvData.length > 0) {
+      nextRound = this.csvData[0].round + 1;
+    }
+    
+    const nextDate = this.getNextSaturday();
+    const daysUntil = this.getDaysUntilNextSaturday();
+    
+    console.log(`🔮 다음 회차 정보: ${nextRound}회차, ${nextDate}, ${daysUntil}일 후`);
+    
     return {
-      round: 1178,
-      date: '2025-06-28',
+      round: nextRound,
+      date: nextDate,
       estimatedJackpot: 3500000000,
-      daysUntilDraw: this.getDaysUntilNextSaturday()
+      daysUntilDraw: daysUntil
     };
   }
 
-  // 수동 데이터 업데이트 (관리자용)
+  // 수동 데이터 업데이트 (CSV 파일 다시 읽기)
   async forceUpdate(): Promise<{ success: boolean; message: string }> {
+    console.log('🔄 CSV 파일 다시 로딩...');
+    
+    this.isUpdating = true;
+    
     try {
-      console.log('수동 데이터 업데이트 시작...');
-      this.lastUpdateTime = 0; // 캐시 무효화
-      await this.updateLatestData();
+      await this.loadCSVData();
+      this.lastUpdateTime = Date.now();
+      this.isUpdating = false;
       
+      console.log('✅ CSV 데이터 업데이트 완료!');
       return {
         success: true,
-        message: '데이터 업데이트 완료'
+        message: `✅ ${this.csvData.length}개 회차 CSV 데이터로 업데이트 완료!`
       };
     } catch (error) {
+      this.isUpdating = false;
+      console.error('❌ CSV 업데이트 실패:', error);
       return {
         success: false,
-        message: error instanceof Error ? error.message : '업데이트 실패'
+        message: '⚠️ public/6_45_Lotto.csv 파일을 확인해주세요'
       };
     }
   }
@@ -176,53 +288,37 @@ class LottoDataManager {
     crawlerStatus: any;
     nextUpdateIn: number;
   } {
-    const crawlerStatus = this.crawler.getServiceStatus();
-    const nextUpdateIn = Math.max(0, this.updateInterval - (Date.now() - this.lastUpdateTime));
-
     return {
       lastUpdateTime: new Date(this.lastUpdateTime),
       isUpdating: this.isUpdating,
-      crawlerStatus,
-      nextUpdateIn: Math.floor(nextUpdateIn / 1000) // 초 단위
+      crawlerStatus: {
+        isRateLimited: false,
+        cacheSize: this.csvData.length,
+        lastRequestTime: this.lastUpdateTime,
+        mode: 'csv_file_direct',
+        dataSource: 'public_csv_file_913rounds',
+        totalRounds: this.csvData.length,
+        isDataLoaded: this.isDataLoaded,
+        latestRound: this.csvData.length > 0 ? this.csvData[0].round : 0,
+        dataRange: this.getDataRange()
+      },
+      nextUpdateIn: 0
     };
   }
 
-  // Private 메서드들
-  private async updateLatestData(): Promise<void> {
-    if (this.isUpdating) {
-      console.log('이미 업데이트 중...');
-      return;
-    }
-
-    this.isUpdating = true;
-    try {
-      console.log('최신 데이터 업데이트 중...');
-      await this.crawler.getDrawResult(); // 최신 데이터 가져오기
-      this.lastUpdateTime = Date.now();
-      console.log('최신 데이터 업데이트 완료');
-    } finally {
-      this.isUpdating = false;
-    }
+  // 폴백 데이터
+  private getFallbackData(): LottoDrawResult {
+    return {
+      round: 1178,
+      date: '2025-06-28',
+      numbers: [5, 6, 11, 27, 43, 44],
+      bonusNumber: 17,
+      jackpotWinners: 12,
+      jackpotPrize: 2391608407
+    };
   }
 
-  private scheduleUpdates(): void {
-    // 30분마다 자동 업데이트
-    setInterval(async () => {
-      if (!this.isUpdating) {
-        try {
-          await this.updateLatestData();
-        } catch (error) {
-          console.error('주기적 업데이트 실패:', error);
-        }
-      }
-    }, this.updateInterval);
-
-    // 캐시 정리 (1시간마다)
-    setInterval(() => {
-      this.crawler.clearExpiredCache();
-    }, 60 * 60 * 1000);
-  }
-
+  // 유틸리티 메서드들
   private getNextSaturday(): string {
     const now = new Date();
     const daysUntilSaturday = (6 - now.getDay()) % 7 || 7;
@@ -237,51 +333,32 @@ class LottoDataManager {
     return (6 - now.getDay()) % 7 || 7;
   }
 
-  private getFallbackHistoryData(count: number): LottoDrawResult[] {
-    const fallbackData: LottoDrawResult[] = [
-      {
-        round: 1177,
-        date: '2025-06-21',
-        numbers: [3, 7, 15, 16, 19, 43],
-        bonusNumber: 21
-      },
-      {
-        round: 1176,
-        date: '2025-06-14',
-        numbers: [1, 5, 12, 18, 26, 32],
-        bonusNumber: 44
-      },
-      {
-        round: 1175,
-        date: '2025-06-07',
-        numbers: [3, 7, 15, 22, 28, 35],
-        bonusNumber: 41
-      },
-      {
-        round: 1174,
-        date: '2025-05-31',
-        numbers: [2, 9, 14, 21, 27, 33],
-        bonusNumber: 45
-      },
-      {
-        round: 1173,
-        date: '2025-05-24',
-        numbers: [4, 11, 17, 24, 31, 38],
-        bonusNumber: 42
-      }
-    ];
-
-    return fallbackData.slice(0, count);
+  private getDataRange(): string {
+    if (this.csvData.length === 0) return '데이터 없음';
+    return `${this.csvData[this.csvData.length - 1].round}회 ~ ${this.csvData[0].round}회`;
   }
 
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+  // CSV 데이터 상태 확인
+  public getCSVDataStatus(): {
+    isLoaded: boolean;
+    totalRounds: number;
+    latestRound: number;
+    oldestRound: number;
+    dataRange: string;
+  } {
+    return {
+      isLoaded: this.isDataLoaded,
+      totalRounds: this.csvData.length,
+      latestRound: this.csvData.length > 0 ? this.csvData[0].round : 0,
+      oldestRound: this.csvData.length > 0 ? this.csvData[this.csvData.length - 1].round : 0,
+      dataRange: this.getDataRange()
+    };
   }
 
-  // 정리 함수 (컴포넌트 언마운트 시 호출)
   public cleanup(): void {
-    // 진행 중인 요청들 정리
-    console.log('LottoDataManager 정리 중...');
+    console.log('🧹 LottoDataManager 정리 완료');
+    this.csvData = [];
+    this.isDataLoaded = false;
   }
 }
 
