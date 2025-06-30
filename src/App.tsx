@@ -12,6 +12,9 @@ interface PurchaseItem {
   strategy: string;
   date: string;
   checked: boolean;
+  status: "saved" | "planned" | "purchased"; // 추가
+  memo?: string; // 추가
+  purchaseDate?: string; // 추가
 }
 
 const LottoApp = () => {
@@ -80,7 +83,7 @@ const LottoApp = () => {
     return Array.from(numbers).sort((a, b) => a - b);
   };
 
-  // 내번호함 관련 함수들
+  // 내번호함 관련 함수들 (수정됨)
   const addToPurchaseHistory = (numbers: number[], strategy: string) => {
     const newPurchase: PurchaseItem = {
       id: Date.now(),
@@ -88,6 +91,8 @@ const LottoApp = () => {
       strategy,
       date: new Date().toLocaleDateString(),
       checked: false,
+      status: "saved", // 기본값: 저장 상태
+      memo: "",
     };
     setPurchaseHistory((prev) => [newPurchase, ...prev]);
   };
@@ -161,6 +166,7 @@ const LottoApp = () => {
             purchaseHistory={purchaseHistory}
             onDelete={deletePurchaseItem}
             onCheck={checkPurchaseItem}
+            onAdd={addToPurchaseHistory} // 새로 추가
             pastWinningNumbers={pastWinningNumbers}
           />
         );
