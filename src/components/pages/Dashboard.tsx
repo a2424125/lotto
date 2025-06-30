@@ -1,20 +1,125 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import LottoNumberBall from "../shared/LottoNumberBall";
+import { lottoDataManager } from "../../services/lottoDataManager";
 
 interface DashboardProps {
   pastWinningNumbers: number[][];
   onMenuChange: (menu: string) => void;
   generate1stGradeNumbers: () => number[];
+  onRefreshData?: () => void;
+}
+
+interface NextDrawInfo {
+  round: number;
+  date: string;
+  estimatedJackpot: number;
+  daysUntilDraw: number;
+  formattedDate: string;
+  timeUntilDraw: string;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({
   pastWinningNumbers,
   onMenuChange,
   generate1stGradeNumbers,
+  onRefreshData
 }) => {
+  const [nextDrawInfo, setNextDrawInfo] = useState<NextDrawInfo | null>(null);
+  const [isLoadingNextDraw, setIsLoadingNextDraw] = useState(true);
+
+  // 컴포넌트 마운트 시 다음 추첨 정보 로드
+  useEffect(() => {
+    loadNextDrawInfo();
+    
+    // 매 시간마다 다음 추첨 정보 업데이트
+    const interval = setInterval(loadNextDrawInfo, 60 * 60 * 1000); // 1시간마다
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  // 다음 추첨 정보 로드
+  const loadNextDrawInfo = async () => {
+    try {
+      setIsLoadingNextDraw(true);
+      const info = await lottoDataManager.getNextDrawInfo();
+      
+      // 날짜 포맷팅
+      const date = new Date(info.date);
+      const formattedDate = formatKoreanDate(date);
+      const timeUntilDraw = getTimeUntilDraw(info.daysUntilDraw);
+      
+      setNextDrawInfo({
+        ...info,
+        formattedDate,
+        timeUntilDraw
+      });
+      
+      console.log('📅 다음 추첨 정보 업데이트:', formattedDate);
+    } catch (error) {
+      console.error('❌ 다음 추첨 정보 로드 실패:', error);
+      
+      // 폴백 정보
+      setNextDrawInfo({
+        round: 1179,
+        date: getNextSaturday(),
+        estimatedJackpot: 3500000000,
+        daysUntilDraw: getDaysUntilNextSaturday(),
+        formattedDate: formatKoreanDate(new Date(getNextSaturday())),
+        timeUntilDraw: getTimeUntilDraw(getDaysUntilNextSaturday())
+      });
+    } finally {
+      setIsLoadingNextDraw(false);
+    }
+  };
+
+  // 한국어 날짜 포맷팅
+  const formatKoreanDate = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const weekday = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
+    
+    return `${year}년 ${month}월 ${day}일 (${weekday}) 오후 8시 45분`;
+  };
+
+  // 추첨까지 남은 시간 텍스트
+  const getTimeUntilDraw = (daysUntil: number): string => {
+    if (daysUntil === 0) return "오늘 추첨!";
+    if (daysUntil === 1) return "내일 추첨!";
+    return `${daysUntil}일 후 추첨`;
+  };
+
+  // 다음 토요일 계산
+  const getNextSaturday = (): string => {
+    const now = new Date();
+    const daysUntilSaturday = (6 - now.getDay()) % 7 || 7;
+    const nextSaturday = new Date(now);
+    nextSaturday.setDate(now.getDate() + daysUntilSaturday);
+    
+    return nextSaturday.toISOString().split('T')[0];
+  };
+
+  // 다음 토요일까지 남은 일수
+  const getDaysUntilNextSaturday = (): number => {
+    const now = new Date();
+    return (6 - now.getDay()) % 7 || 7;
+  };
+
+  // 상금 포맷팅 (억 단위)
+  const formatPrize = (amount: number): string => {
+    const eok = Math.floor(amount / 100000000);
+    const cheon = Math.floor((amount % 100000000) / 10000000);
+    
+    if (cheon > 0) {
+      return `${eok}억 ${cheon}천만원`;
+    } else {
+      return `${eok}억원`;
+    }
+  };
+
   return (
     <div style={{ padding: "12px" }}>
-      {/* 다음 추첨 정보 */}
+      {/* 다음 추첨 정보 - 동적 업데이트 */}
       <div
         style={{
           backgroundColor: "#f0fdf4",
@@ -23,24 +128,89 @@ const Dashboard: React.FC<DashboardProps> = ({
           border: "1px solid #bbf7d0",
           marginBottom: "12px",
           textAlign: "center",
+          position: "relative"
         }}
       >
-        <h3
+        {/* 새로고침 버튼 */}
+        <button
+          onClick={loadNextDrawInfo}
+          disabled={isLoadingNextDraw}
           style={{
-            fontSize: "16px",
-            fontWeight: "bold",
+            position: "absolute",
+            top: "8px",
+            right: "8px",
+            background: "rgba(22, 101, 52, 0.1)",
+            border: "none",
+            borderRadius: "4px",
+            padding: "4px 8px",
+            fontSize: "10px",
             color: "#166534",
-            margin: "0 0 4px 0",
+            cursor: isLoadingNextDraw ? "not-allowed" : "pointer",
+            opacity: isLoadingNextDraw ? 0.6 : 1
           }}
         >
-          다음 추첨: 1178회
-        </h3>
-        <p style={{ color: "#16a34a", margin: "2px 0", fontSize: "14px" }}>
-          2025년 6월 28일 (토) 오후 8시 45분
-        </p>
-        <p style={{ fontSize: "12px", color: "#16a34a", margin: "2px 0" }}>
-          예상 1등 당첨금: 35억 2천만원
-        </p>
+          {isLoadingNextDraw ? "⏳" : "🔄"}
+        </button>
+
+        {nextDrawInfo ? (
+          <>
+            <h3
+              style={{
+                fontSize: "16px",
+                fontWeight: "bold",
+                color: "#166534",
+                margin: "0 0 4px 0",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px"
+              }}
+            >
+              다음 추첨: {nextDrawInfo.round}회
+              {nextDrawInfo.daysUntilDraw <= 1 && (
+                <span style={{
+                  fontSize: "10px",
+                  padding: "2px 6px",
+                  backgroundColor: "#ef4444",
+                  color: "white",
+                  borderRadius: "4px",
+                  animation: "pulse 2s infinite"
+                }}>
+                  {nextDrawInfo.daysUntilDraw === 0 ? "오늘!" : "내일!"}
+                </span>
+              )}
+            </h3>
+            <p style={{ color: "#16a34a", margin: "2px 0", fontSize: "14px" }}>
+              {nextDrawInfo.formattedDate}
+            </p>
+            <p style={{ fontSize: "12px", color: "#16a34a", margin: "2px 0" }}>
+              예상 1등 당첨금: {formatPrize(nextDrawInfo.estimatedJackpot)}
+            </p>
+            <p style={{ 
+              fontSize: "11px", 
+              color: "#059669", 
+              margin: "4px 0 0 0",
+              fontWeight: "bold"
+            }}>
+              ⏰ {nextDrawInfo.timeUntilDraw}
+            </p>
+          </>
+        ) : (
+          <div style={{ padding: "16px" }}>
+            <div style={{
+              width: "24px",
+              height: "24px",
+              border: "2px solid #bbf7d0",
+              borderTop: "2px solid #166534",
+              borderRadius: "50%",
+              animation: "spin 1s linear infinite",
+              margin: "0 auto 8px"
+            }} />
+            <p style={{ color: "#16a34a", margin: "0", fontSize: "12px" }}>
+              다음 추첨 정보 로딩 중...
+            </p>
+          </div>
+        )}
       </div>
 
       {/* 1177회차 당첨결과 */}
@@ -365,6 +535,20 @@ const Dashboard: React.FC<DashboardProps> = ({
           ※ 확률이 높을수록 당첨 가능성이 큽니다
         </p>
       </div>
+
+      {/* CSS 애니메이션 */}
+      <style>
+        {`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+          @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+          }
+        `}
+      </style>
     </div>
   );
 };
