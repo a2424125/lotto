@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from "react";
 import LottoNumberBall from "../shared/LottoNumberBall";
 import { lottoDataManager } from "../../services/lottoDataManager";
+import { LottoDrawResult } from "../../types/lotto";
 
 interface DashboardProps {
   pastWinningNumbers: number[][];
   onMenuChange: (menu: string) => void;
   generate1stGradeNumbers: () => number[];
   onRefreshData?: () => void;
+  isDataLoading?: boolean;
+  dataStatus?: any;
 }
 
 interface NextDrawInfo {
@@ -22,20 +25,67 @@ const Dashboard: React.FC<DashboardProps> = ({
   pastWinningNumbers,
   onMenuChange,
   generate1stGradeNumbers,
-  onRefreshData
+  onRefreshData,
+  isDataLoading = false,
+  dataStatus
 }) => {
   const [nextDrawInfo, setNextDrawInfo] = useState<NextDrawInfo | null>(null);
   const [isLoadingNextDraw, setIsLoadingNextDraw] = useState(true);
+  
+  // 🔥 최신 당첨 결과 정보 상태 추가
+  const [latestResult, setLatestResult] = useState<LottoDrawResult | null>(null);
+  const [isLoadingLatest, setIsLoadingLatest] = useState(true);
 
-  // 컴포넌트 마운트 시 다음 추첨 정보 로드
+  // 컴포넌트 마운트 시 데이터 로드
   useEffect(() => {
     loadNextDrawInfo();
+    loadLatestResult(); // 🔥 최신 당첨 결과 로드
     
-    // 매 시간마다 다음 추첨 정보 업데이트
-    const interval = setInterval(loadNextDrawInfo, 60 * 60 * 1000); // 1시간마다
+    // 매 시간마다 업데이트
+    const interval = setInterval(() => {
+      loadNextDrawInfo();
+      loadLatestResult();
+    }, 60 * 60 * 1000);
     
     return () => clearInterval(interval);
   }, []);
+
+  // pastWinningNumbers가 변경될 때마다 최신 결과 업데이트
+  useEffect(() => {
+    if (pastWinningNumbers.length > 0) {
+      loadLatestResult();
+    }
+  }, [pastWinningNumbers]);
+
+  // 🔥 최신 당첨 결과 로드
+  const loadLatestResult = async () => {
+    try {
+      setIsLoadingLatest(true);
+      const response = await lottoDataManager.getLatestResult();
+      
+      if (response.success && response.data) {
+        setLatestResult(response.data);
+        console.log('📊 최신 당첨 결과 로드:', response.data.round, '회차');
+      } else {
+        console.warn('⚠️ 최신 당첨 결과 로드 실패, 폴백 사용');
+        // 폴백: pastWinningNumbers에서 추정
+        if (pastWinningNumbers.length > 0) {
+          setLatestResult({
+            round: 1177, // 기본값 (나중에 동적으로 계산 가능)
+            date: '2025-06-21',
+            numbers: pastWinningNumbers[0].slice(0, 6),
+            bonusNumber: pastWinningNumbers[0][6],
+            jackpotWinners: 6,
+            jackpotPrize: 4576672000
+          });
+        }
+      }
+    } catch (error) {
+      console.error('❌ 최신 당첨 결과 로드 실패:', error);
+    } finally {
+      setIsLoadingLatest(false);
+    }
+  };
 
   // 다음 추첨 정보 로드
   const loadNextDrawInfo = async () => {
@@ -60,7 +110,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       
       // 폴백 정보
       setNextDrawInfo({
-        round: 1179,
+        round: (latestResult?.round || 1177) + 1,
         date: getNextSaturday(),
         estimatedJackpot: 3500000000,
         daysUntilDraw: getDaysUntilNextSaturday(),
@@ -72,6 +122,29 @@ const Dashboard: React.FC<DashboardProps> = ({
     }
   };
 
+  // 🔥 수동 새로고침 (강화됨)
+  const handleRefresh = async () => {
+    setIsLoadingNextDraw(true);
+    setIsLoadingLatest(true);
+    
+    try {
+      // 상위 컴포넌트의 새로고침 호출
+      if (onRefreshData) {
+        await onRefreshData();
+      }
+      
+      // 로컬 데이터도 새로고침
+      await Promise.all([
+        loadNextDrawInfo(),
+        loadLatestResult()
+      ]);
+      
+      console.log('✅ Dashboard 데이터 새로고침 완료');
+    } catch (error) {
+      console.error('❌ Dashboard 새로고침 실패:', error);
+    }
+  };
+
   // 한국어 날짜 포맷팅
   const formatKoreanDate = (date: Date): string => {
     const year = date.getFullYear();
@@ -80,6 +153,22 @@ const Dashboard: React.FC<DashboardProps> = ({
     const weekday = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
     
     return `${year}년 ${month}월 ${day}일 (${weekday}) 오후 8시 45분`;
+  };
+
+  // 🔥 한국어 날짜 포맷팅 (당첨결과용)
+  const formatResultDate = (dateStr: string): string => {
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr;
+      
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      
+      return `${year}년 ${month}월 ${day}일 추첨`;
+    } catch {
+      return dateStr;
+    }
   };
 
   // 추첨까지 남은 시간 텍스트
@@ -133,8 +222,8 @@ const Dashboard: React.FC<DashboardProps> = ({
       >
         {/* 새로고침 버튼 */}
         <button
-          onClick={loadNextDrawInfo}
-          disabled={isLoadingNextDraw}
+          onClick={handleRefresh}
+          disabled={isLoadingNextDraw || isDataLoading}
           style={{
             position: "absolute",
             top: "8px",
@@ -145,11 +234,12 @@ const Dashboard: React.FC<DashboardProps> = ({
             padding: "4px 8px",
             fontSize: "10px",
             color: "#166534",
-            cursor: isLoadingNextDraw ? "not-allowed" : "pointer",
-            opacity: isLoadingNextDraw ? 0.6 : 1
+            cursor: (isLoadingNextDraw || isDataLoading) ? "not-allowed" : "pointer",
+            opacity: (isLoadingNextDraw || isDataLoading) ? 0.6 : 1,
+            animation: (isLoadingNextDraw || isDataLoading) ? "spin 2s linear infinite" : "none"
           }}
         >
-          {isLoadingNextDraw ? "⏳" : "🔄"}
+          {(isLoadingNextDraw || isDataLoading) ? "⏳" : "🔄"}
         </button>
 
         {nextDrawInfo ? (
@@ -213,7 +303,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         )}
       </div>
 
-      {/* 1177회차 당첨결과 */}
+      {/* 🔥 최신 당첨결과 - 동적 업데이트 */}
       <div
         style={{
           backgroundColor: "white",
@@ -224,19 +314,52 @@ const Dashboard: React.FC<DashboardProps> = ({
         }}
       >
         <div style={{ textAlign: "center", marginBottom: "12px" }}>
-          <h2
-            style={{
-              fontSize: "18px",
-              fontWeight: "bold",
-              color: "#1f2937",
-              margin: "0 0 4px 0",
-            }}
-          >
-            1177회 당첨결과
-          </h2>
-          <p style={{ fontSize: "12px", color: "#6b7280", margin: "0" }}>
-            (2025년 06월 21일 추첨)
-          </p>
+          {latestResult ? (
+            <>
+              <h2
+                style={{
+                  fontSize: "18px",
+                  fontWeight: "bold",
+                  color: "#1f2937",
+                  margin: "0 0 4px 0",
+                }}
+              >
+                {latestResult.round}회 당첨결과
+                {isLoadingLatest && (
+                  <span style={{
+                    marginLeft: "8px",
+                    fontSize: "12px",
+                    opacity: 0.7
+                  }}>
+                    ⏳
+                  </span>
+                )}
+              </h2>
+              <p style={{ fontSize: "12px", color: "#6b7280", margin: "0" }}>
+                ({formatResultDate(latestResult.date)})
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 style={{
+                fontSize: "18px",
+                fontWeight: "bold",
+                color: "#1f2937",
+                margin: "0 0 4px 0",
+              }}>
+                당첨결과 로딩 중...
+              </h2>
+              <div style={{
+                width: "20px",
+                height: "20px",
+                border: "2px solid #e5e7eb",
+                borderTop: "2px solid #2563eb",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite",
+                margin: "8px auto"
+              }} />
+            </>
+          )}
         </div>
 
         {/* 당첨번호 + 보너스 번호 일렬 배치 */}
@@ -288,6 +411,30 @@ const Dashboard: React.FC<DashboardProps> = ({
             마지막 번호는 보너스 번호입니다
           </p>
         </div>
+
+        {/* 🔥 당첨 통계 정보 (선택적) */}
+        {latestResult && latestResult.jackpotWinners && (
+          <div style={{
+            marginTop: "12px",
+            padding: "8px",
+            backgroundColor: "#f8fafc",
+            borderRadius: "6px",
+            textAlign: "center"
+          }}>
+            <div style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: "16px",
+              fontSize: "11px",
+              color: "#6b7280"
+            }}>
+              <span>🏆 1등 {latestResult.jackpotWinners}명</span>
+              {latestResult.jackpotPrize && (
+                <span>💰 {Math.round(latestResult.jackpotPrize / 100000000)}억원</span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* AI 추천 미리보기 */}
