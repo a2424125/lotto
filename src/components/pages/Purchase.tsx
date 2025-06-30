@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import LottoNumberBall from "../shared/LottoNumberBall";
 
 interface PurchaseItem {
@@ -7,7 +7,7 @@ interface PurchaseItem {
   strategy: string;
   date: string;
   checked: boolean;
-  status: "saved" | "planned" | "purchased";
+  status: "saved" | "favorite" | "checked";
   memo?: string;
   purchaseDate?: string;
 }
@@ -37,9 +37,23 @@ const Purchase: React.FC<PurchaseProps> = ({
   const [selectedNumbers, setSelectedNumbers] = useState<number[]>([]);
   const [memo, setMemo] = useState("");
   const [isAutoSelect, setIsAutoSelect] = useState(false);
-  const [filter, setFilter] = useState<"all" | "saved" | "planned" | "purchased">("all");
+  const [filter, setFilter] = useState<"all" | "saved" | "favorite" | "checked">("all");
+  const [localHistory, setLocalHistory] = useState(purchaseHistory);
 
-  // AI 추천번호들 (실제로는 번호추천에서 생성된 것들을 props로 받아야 함)
+  // purchaseHistory가 변경되면 localHistory 업데이트
+  useEffect(() => {
+    setLocalHistory(purchaseHistory);
+  }, [purchaseHistory]);
+
+  // 상태 변경 함수
+  const changeItemStatus = (id: number, newStatus: "saved" | "favorite" | "checked") => {
+    const updatedHistory = localHistory.map(item => 
+      item.id === id ? { ...item, status: newStatus } : item
+    );
+    setLocalHistory(updatedHistory);
+  };
+
+  // AI 추천번호들
   const aiRecommendedNumbers = [
     { name: "1등 - AI 완벽분석", numbers: [2, 8, 14, 21, 29, 35], grade: "1등" },
     { name: "1등 - 황금비율 조합", numbers: [5, 11, 17, 23, 31, 42], grade: "1등" },
@@ -48,9 +62,9 @@ const Purchase: React.FC<PurchaseProps> = ({
     { name: "4등 - 패턴 분석", numbers: [1, 12, 18, 26, 32, 44], grade: "4등" }
   ];
 
-  // 번호 선택/해제 (OMR 방식)
+  // 번호 선택/해제
   const toggleNumber = (num: number) => {
-    if (isAutoSelect) return; // 자동선택 모드에서는 수동 선택 불가
+    if (isAutoSelect) return;
     
     setSelectedNumbers(prev => {
       if (prev.includes(num)) {
@@ -66,14 +80,12 @@ const Purchase: React.FC<PurchaseProps> = ({
   const toggleAutoSelect = () => {
     setIsAutoSelect(!isAutoSelect);
     if (!isAutoSelect) {
-      // 자동선택 활성화시 랜덤 번호 생성
       const numbers = new Set<number>();
       while (numbers.size < 6) {
         numbers.add(Math.floor(Math.random() * 45) + 1);
       }
       setSelectedNumbers(Array.from(numbers).sort((a, b) => a - b));
     } else {
-      // 자동선택 해제시 번호 초기화
       setSelectedNumbers([]);
     }
   };
@@ -81,7 +93,7 @@ const Purchase: React.FC<PurchaseProps> = ({
   // AI 추천번호 적용
   const applyRecommendedNumbers = (numbers: number[]) => {
     setSelectedNumbers([...numbers]);
-    setIsAutoSelect(false); // AI 추천 적용시 자동선택 해제
+    setIsAutoSelect(false);
   };
 
   // 번호 저장
@@ -132,23 +144,64 @@ const Purchase: React.FC<PurchaseProps> = ({
     alert("번호가 복사되었습니다!");
   };
 
+  // 당첨확인 결과 메시지 생성
+  const getCheckedFilterMessage = () => {
+    const checkedItems = localHistory.filter(item => item.status === "checked");
+    
+    if (checkedItems.length === 0) {
+      return {
+        icon: "🔍",
+        title: "당첨 확인할 번호가 없어요",
+        description: "번호를 등록하고 당첨확인을 해보세요!"
+      };
+    }
+
+    const winners = checkedItems.filter(item => {
+      const result = checkWinning(item.numbers);
+      return result.grade !== "낙첨";
+    });
+
+    if (winners.length > 0) {
+      const bestWinner = winners.reduce((best, current) => {
+        const bestResult = checkWinning(best.numbers);
+        const currentResult = checkWinning(current.numbers);
+        const gradeOrder = { "1등": 1, "2등": 2, "3등": 3, "4등": 4, "5등": 5 };
+        return gradeOrder[currentResult.grade as keyof typeof gradeOrder] < gradeOrder[bestResult.grade as keyof typeof gradeOrder] 
+          ? current : best;
+      });
+      const result = checkWinning(bestWinner.numbers);
+      
+      return {
+        icon: "🎉",
+        title: `축하합니다! ${result.grade} 당첨입니다!`,
+        description: `${result.matches}개 번호가 일치했어요${result.bonusMatch ? " (보너스 포함)" : ""}`
+      };
+    } else {
+      return {
+        icon: "😔",
+        title: "아쉽네요, 낙첨입니다",
+        description: "다음 회차에 도전해보세요!"
+      };
+    }
+  };
+
   // 필터링
-  const filteredHistory = purchaseHistory.filter(item => {
+  const filteredHistory = localHistory.filter(item => {
     if (filter === "all") return true;
     return item.status === filter;
   });
 
   // 통계
   const stats = {
-    total: purchaseHistory.length,
-    saved: purchaseHistory.filter(item => item.status === "saved").length,
-    planned: purchaseHistory.filter(item => item.status === "planned").length,
-    purchased: purchaseHistory.filter(item => item.status === "purchased").length,
+    total: localHistory.length,
+    saved: localHistory.filter(item => item.status === "saved").length,
+    favorite: localHistory.filter(item => item.status === "favorite").length,
+    checked: localHistory.filter(item => item.status === "checked").length,
   };
 
   return (
     <div style={{ padding: "12px" }}>
-      {/* 헤더 (상단 버튼 제거) */}
+      {/* 헤더 */}
       <div style={{
         backgroundColor: "white",
         padding: "16px",
@@ -172,52 +225,72 @@ const Purchase: React.FC<PurchaseProps> = ({
           나만의 로또 번호를 기록하고 당첨을 확인하세요
         </p>
 
-        {/* 통계 */}
+        {/* 통계 (클릭 가능한 필터 버튼으로 변경) */}
         <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
-          <div style={{ 
-            flex: 1, 
-            padding: "12px 8px", 
-            backgroundColor: "#f8fafc", 
-            borderRadius: "8px", 
-            textAlign: "center",
-            border: "1px solid #f1f5f9"
-          }}>
+          <button
+            onClick={() => setFilter("all")}
+            style={{ 
+              flex: 1, 
+              padding: "12px 8px", 
+              backgroundColor: filter === "all" ? "#e2e8f0" : "#f8fafc", 
+              borderRadius: "8px", 
+              textAlign: "center",
+              border: filter === "all" ? "2px solid #64748b" : "1px solid #e2e8f0",
+              cursor: "pointer",
+              transition: "all 0.2s"
+            }}
+          >
             <p style={{ fontSize: "18px", fontWeight: "bold", color: "#1f2937", margin: "0" }}>{stats.total}</p>
             <p style={{ fontSize: "12px", color: "#6b7280", margin: "0" }}>전체</p>
-          </div>
-          <div style={{ 
-            flex: 1, 
-            padding: "12px 8px", 
-            backgroundColor: "#fefce8", 
-            borderRadius: "8px", 
-            textAlign: "center",
-            border: "1px solid #fef3c7"
-          }}>
-            <p style={{ fontSize: "18px", fontWeight: "bold", color: "#d97706", margin: "0" }}>{stats.saved}</p>
-            <p style={{ fontSize: "12px", color: "#d97706", margin: "0" }}>저장</p>
-          </div>
-          <div style={{ 
-            flex: 1, 
-            padding: "12px 8px", 
-            backgroundColor: "#eff6ff", 
-            borderRadius: "8px", 
-            textAlign: "center",
-            border: "1px solid #dbeafe"
-          }}>
-            <p style={{ fontSize: "18px", fontWeight: "bold", color: "#2563eb", margin: "0" }}>{stats.planned}</p>
-            <p style={{ fontSize: "12px", color: "#2563eb", margin: "0" }}>구매예정</p>
-          </div>
-          <div style={{ 
-            flex: 1, 
-            padding: "12px 8px", 
-            backgroundColor: "#f0fdf4", 
-            borderRadius: "8px", 
-            textAlign: "center",
-            border: "1px solid #bbf7d0"
-          }}>
-            <p style={{ fontSize: "18px", fontWeight: "bold", color: "#16a34a", margin: "0" }}>{stats.purchased}</p>
-            <p style={{ fontSize: "12px", color: "#16a34a", margin: "0" }}>구매완료</p>
-          </div>
+          </button>
+          <button
+            onClick={() => setFilter("saved")}
+            style={{ 
+              flex: 1, 
+              padding: "12px 8px", 
+              backgroundColor: filter === "saved" ? "#bfdbfe" : "#dbeafe", 
+              borderRadius: "8px", 
+              textAlign: "center",
+              border: filter === "saved" ? "2px solid #3b82f6" : "1px solid #93c5fd",
+              cursor: "pointer",
+              transition: "all 0.2s"
+            }}
+          >
+            <p style={{ fontSize: "18px", fontWeight: "bold", color: "#2563eb", margin: "0" }}>{stats.saved}</p>
+            <p style={{ fontSize: "12px", color: "#1d4ed8", margin: "0" }}>저장</p>
+          </button>
+          <button
+            onClick={() => setFilter("favorite")}
+            style={{ 
+              flex: 1, 
+              padding: "12px 8px", 
+              backgroundColor: filter === "favorite" ? "#fbbf24" : "#fcd34d", 
+              borderRadius: "8px", 
+              textAlign: "center",
+              border: filter === "favorite" ? "2px solid #f59e0b" : "1px solid #fbbf24",
+              cursor: "pointer",
+              transition: "all 0.2s"
+            }}
+          >
+            <p style={{ fontSize: "18px", fontWeight: "bold", color: "#92400e", margin: "0" }}>{stats.favorite}</p>
+            <p style={{ fontSize: "12px", color: "#92400e", margin: "0" }}>즐겨찾기</p>
+          </button>
+          <button
+            onClick={() => setFilter("checked")}
+            style={{ 
+              flex: 1, 
+              padding: "12px 8px", 
+              backgroundColor: filter === "checked" ? "#86efac" : "#bbf7d0", 
+              borderRadius: "8px", 
+              textAlign: "center",
+              border: filter === "checked" ? "2px solid #10b981" : "1px solid #86efac",
+              cursor: "pointer",
+              transition: "all 0.2s"
+            }}
+          >
+            <p style={{ fontSize: "18px", fontWeight: "bold", color: "#15803d", margin: "0" }}>{stats.checked}</p>
+            <p style={{ fontSize: "12px", color: "#15803d", margin: "0" }}>당첨확인</p>
+          </button>
         </div>
 
         {/* 새 번호 등록 토글 버튼 */}
@@ -278,7 +351,7 @@ const Purchase: React.FC<PurchaseProps> = ({
             </p>
           </div>
 
-          {/* A게임 (단일 게임 모드) */}
+          {/* A게임 */}
           <div style={{
             backgroundColor: "#fefefe",
             padding: "16px",
@@ -302,193 +375,58 @@ const Purchase: React.FC<PurchaseProps> = ({
               A 게임 | 1,000원
             </div>
 
-            {/* 실제 로또 용지 번호 배치 (7개씩 7행) */}
+            {/* 실제 로또 용지 번호 배치 */}
             <div style={{
               backgroundColor: "white",
               padding: "12px",
               borderRadius: "6px",
               border: "1px solid #fecaca"
             }}>
-              {/* 1-7 */}
-              <div style={{ display: "flex", gap: "3px", marginBottom: "4px", justifyContent: "center" }}>
-                {Array.from({ length: 7 }, (_, i) => i + 1).map(num => (
-                  <button
-                    key={num}
-                    onClick={() => toggleNumber(num)}
-                    disabled={isAutoSelect}
-                    style={{
-                      width: "32px",
-                      height: "28px",
-                      borderRadius: "4px",
-                      border: selectedNumbers.includes(num) ? "2px solid #dc2626" : "1px solid #d1d5db",
-                      backgroundColor: selectedNumbers.includes(num) ? "#dc2626" : "white",
-                      color: selectedNumbers.includes(num) ? "white" : "#374151",
-                      fontSize: "11px",
-                      fontWeight: selectedNumbers.includes(num) ? "bold" : "normal",
-                      cursor: isAutoSelect ? "not-allowed" : "pointer",
-                      opacity: isAutoSelect ? 0.6 : 1
-                    }}
-                  >
-                    {num}
-                  </button>
-                ))}
-              </div>
+              {/* 7행 번호 배치 */}
+              {[
+                Array.from({ length: 7 }, (_, i) => i + 1),      // 1-7
+                Array.from({ length: 7 }, (_, i) => i + 8),      // 8-14
+                Array.from({ length: 7 }, (_, i) => i + 15),     // 15-21
+                Array.from({ length: 7 }, (_, i) => i + 22),     // 22-28
+                Array.from({ length: 7 }, (_, i) => i + 29),     // 29-35
+                Array.from({ length: 7 }, (_, i) => i + 36),     // 36-42
+                [43, 44, 45]                                      // 43-45
+              ].map((row, rowIndex) => (
+                <div key={rowIndex} style={{ 
+                  display: "flex", 
+                  gap: "3px", 
+                  marginBottom: "4px", 
+                  justifyContent: "center" 
+                }}>
+                  {row.map(num => (
+                    <button
+                      key={num}
+                      onClick={() => toggleNumber(num)}
+                      disabled={isAutoSelect}
+                      style={{
+                        width: "32px",
+                        height: "28px",
+                        borderRadius: "4px",
+                        border: selectedNumbers.includes(num) ? "2px solid #dc2626" : "1px solid #d1d5db",
+                        backgroundColor: selectedNumbers.includes(num) ? "#dc2626" : "white",
+                        color: selectedNumbers.includes(num) ? "white" : "#374151",
+                        fontSize: "11px",
+                        fontWeight: selectedNumbers.includes(num) ? "bold" : "normal",
+                        cursor: isAutoSelect ? "not-allowed" : "pointer",
+                        opacity: isAutoSelect ? 0.6 : 1
+                      }}
+                    >
+                      {num}
+                    </button>
+                  ))}
+                  {/* 43-45 행의 빈 공간 채우기 */}
+                  {rowIndex === 6 && Array.from({ length: 4 }).map((_, i) => (
+                    <div key={`empty-${i}`} style={{ width: "32px", height: "28px" }} />
+                  ))}
+                </div>
+              ))}
 
-              {/* 8-14 */}
-              <div style={{ display: "flex", gap: "3px", marginBottom: "4px", justifyContent: "center" }}>
-                {Array.from({ length: 7 }, (_, i) => i + 8).map(num => (
-                  <button
-                    key={num}
-                    onClick={() => toggleNumber(num)}
-                    disabled={isAutoSelect}
-                    style={{
-                      width: "32px",
-                      height: "28px",
-                      borderRadius: "4px",
-                      border: selectedNumbers.includes(num) ? "2px solid #dc2626" : "1px solid #d1d5db",
-                      backgroundColor: selectedNumbers.includes(num) ? "#dc2626" : "white",
-                      color: selectedNumbers.includes(num) ? "white" : "#374151",
-                      fontSize: "11px",
-                      fontWeight: selectedNumbers.includes(num) ? "bold" : "normal",
-                      cursor: isAutoSelect ? "not-allowed" : "pointer",
-                      opacity: isAutoSelect ? 0.6 : 1
-                    }}
-                  >
-                    {num}
-                  </button>
-                ))}
-              </div>
-
-              {/* 15-21 */}
-              <div style={{ display: "flex", gap: "3px", marginBottom: "4px", justifyContent: "center" }}>
-                {Array.from({ length: 7 }, (_, i) => i + 15).map(num => (
-                  <button
-                    key={num}
-                    onClick={() => toggleNumber(num)}
-                    disabled={isAutoSelect}
-                    style={{
-                      width: "32px",
-                      height: "28px",
-                      borderRadius: "4px",
-                      border: selectedNumbers.includes(num) ? "2px solid #dc2626" : "1px solid #d1d5db",
-                      backgroundColor: selectedNumbers.includes(num) ? "#dc2626" : "white",
-                      color: selectedNumbers.includes(num) ? "white" : "#374151",
-                      fontSize: "11px",
-                      fontWeight: selectedNumbers.includes(num) ? "bold" : "normal",
-                      cursor: isAutoSelect ? "not-allowed" : "pointer",
-                      opacity: isAutoSelect ? 0.6 : 1
-                    }}
-                  >
-                    {num}
-                  </button>
-                ))}
-              </div>
-
-              {/* 22-28 */}
-              <div style={{ display: "flex", gap: "3px", marginBottom: "4px", justifyContent: "center" }}>
-                {Array.from({ length: 7 }, (_, i) => i + 22).map(num => (
-                  <button
-                    key={num}
-                    onClick={() => toggleNumber(num)}
-                    disabled={isAutoSelect}
-                    style={{
-                      width: "32px",
-                      height: "28px",
-                      borderRadius: "4px",
-                      border: selectedNumbers.includes(num) ? "2px solid #dc2626" : "1px solid #d1d5db",
-                      backgroundColor: selectedNumbers.includes(num) ? "#dc2626" : "white",
-                      color: selectedNumbers.includes(num) ? "white" : "#374151",
-                      fontSize: "11px",
-                      fontWeight: selectedNumbers.includes(num) ? "bold" : "normal",
-                      cursor: isAutoSelect ? "not-allowed" : "pointer",
-                      opacity: isAutoSelect ? 0.6 : 1
-                    }}
-                  >
-                    {num}
-                  </button>
-                ))}
-              </div>
-
-              {/* 29-35 */}
-              <div style={{ display: "flex", gap: "3px", marginBottom: "4px", justifyContent: "center" }}>
-                {Array.from({ length: 7 }, (_, i) => i + 29).map(num => (
-                  <button
-                    key={num}
-                    onClick={() => toggleNumber(num)}
-                    disabled={isAutoSelect}
-                    style={{
-                      width: "32px",
-                      height: "28px",
-                      borderRadius: "4px",
-                      border: selectedNumbers.includes(num) ? "2px solid #dc2626" : "1px solid #d1d5db",
-                      backgroundColor: selectedNumbers.includes(num) ? "#dc2626" : "white",
-                      color: selectedNumbers.includes(num) ? "white" : "#374151",
-                      fontSize: "11px",
-                      fontWeight: selectedNumbers.includes(num) ? "bold" : "normal",
-                      cursor: isAutoSelect ? "not-allowed" : "pointer",
-                      opacity: isAutoSelect ? 0.6 : 1
-                    }}
-                  >
-                    {num}
-                  </button>
-                ))}
-              </div>
-
-              {/* 36-42 */}
-              <div style={{ display: "flex", gap: "3px", marginBottom: "4px", justifyContent: "center" }}>
-                {Array.from({ length: 7 }, (_, i) => i + 36).map(num => (
-                  <button
-                    key={num}
-                    onClick={() => toggleNumber(num)}
-                    disabled={isAutoSelect}
-                    style={{
-                      width: "32px",
-                      height: "28px",
-                      borderRadius: "4px",
-                      border: selectedNumbers.includes(num) ? "2px solid #dc2626" : "1px solid #d1d5db",
-                      backgroundColor: selectedNumbers.includes(num) ? "#dc2626" : "white",
-                      color: selectedNumbers.includes(num) ? "white" : "#374151",
-                      fontSize: "11px",
-                      fontWeight: selectedNumbers.includes(num) ? "bold" : "normal",
-                      cursor: isAutoSelect ? "not-allowed" : "pointer",
-                      opacity: isAutoSelect ? 0.6 : 1
-                    }}
-                  >
-                    {num}
-                  </button>
-                ))}
-              </div>
-
-              {/* 43-45 (마지막 3개) */}
-              <div style={{ display: "flex", gap: "3px", marginBottom: "8px", justifyContent: "center" }}>
-                {Array.from({ length: 3 }, (_, i) => i + 43).map(num => (
-                  <button
-                    key={num}
-                    onClick={() => toggleNumber(num)}
-                    disabled={isAutoSelect}
-                    style={{
-                      width: "32px",
-                      height: "28px",
-                      borderRadius: "4px",
-                      border: selectedNumbers.includes(num) ? "2px solid #dc2626" : "1px solid #d1d5db",
-                      backgroundColor: selectedNumbers.includes(num) ? "#dc2626" : "white",
-                      color: selectedNumbers.includes(num) ? "white" : "#374151",
-                      fontSize: "11px",
-                      fontWeight: selectedNumbers.includes(num) ? "bold" : "normal",
-                      cursor: isAutoSelect ? "not-allowed" : "pointer",
-                      opacity: isAutoSelect ? 0.6 : 1
-                    }}
-                  >
-                    {num}
-                  </button>
-                ))}
-                {/* 빈 공간 4개 (7개 맞춤을 위해) */}
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={`empty-${i}`} style={{ width: "32px", height: "28px" }} />
-                ))}
-              </div>
-
-              {/* 자동선택 체크박스 (실제 로또용지 스타일) */}
+              {/* 자동선택 체크박스 */}
               <div style={{
                 marginTop: "12px",
                 padding: "8px",
@@ -745,32 +683,6 @@ const Purchase: React.FC<PurchaseProps> = ({
         </div>
       )}
 
-      {/* 필터 */}
-      <div style={{ display: "flex", gap: "4px", marginBottom: "12px" }}>
-        {[
-          { key: "all", name: "전체", count: stats.total },
-          { key: "saved", name: "저장", count: stats.saved },
-          { key: "planned", name: "구매예정", count: stats.planned },
-          { key: "purchased", name: "구매완료", count: stats.purchased },
-        ].map(({ key, name, count }) => (
-          <button
-            key={key}
-            onClick={() => setFilter(key as any)}
-            style={{
-              padding: "6px 12px",
-              borderRadius: "4px",
-              border: "1px solid #d1d5db",
-              backgroundColor: filter === key ? "#2563eb" : "white",
-              color: filter === key ? "white" : "#6b7280",
-              fontSize: "12px",
-              cursor: "pointer",
-            }}
-          >
-            {name} ({count})
-          </button>
-        ))}
-      </div>
-
       {/* 번호 목록 */}
       {filteredHistory.length === 0 ? (
         <div style={{
@@ -780,13 +692,30 @@ const Purchase: React.FC<PurchaseProps> = ({
           border: "1px solid #e5e7eb",
           textAlign: "center",
         }}>
-          <div style={{ fontSize: "48px", marginBottom: "12px" }}>📋</div>
-          <p style={{ fontSize: "16px", fontWeight: "bold", color: "#1f2937", margin: "0 0 6px 0" }}>
-            등록된 번호가 없어요
-          </p>
-          <p style={{ color: "#6b7280", margin: "0", fontSize: "14px" }}>
-            번호를 등록해서 당첨을 확인해보세요!
-          </p>
+          {filter === "checked" ? (() => {
+            const message = getCheckedFilterMessage();
+            return (
+              <>
+                <div style={{ fontSize: "48px", marginBottom: "12px" }}>{message.icon}</div>
+                <p style={{ fontSize: "16px", fontWeight: "bold", color: "#1f2937", margin: "0 0 6px 0" }}>
+                  {message.title}
+                </p>
+                <p style={{ color: "#6b7280", margin: "0", fontSize: "14px" }}>
+                  {message.description}
+                </p>
+              </>
+            );
+          })() : (
+            <>
+              <div style={{ fontSize: "48px", marginBottom: "12px" }}>📋</div>
+              <p style={{ fontSize: "16px", fontWeight: "bold", color: "#1f2937", margin: "0 0 6px 0" }}>
+                등록된 번호가 없어요
+              </p>
+              <p style={{ color: "#6b7280", margin: "0", fontSize: "14px" }}>
+                번호를 등록해서 당첨을 확인해보세요!
+              </p>
+            </>
+          )}
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -806,15 +735,39 @@ const Purchase: React.FC<PurchaseProps> = ({
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-                  <div>
-                    <h3 style={{ fontWeight: "bold", color: "#1f2937", margin: "0", fontSize: "14px" }}>
-                      {item.strategy}
-                    </h3>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "2px" }}>
+                      <h3 style={{ fontWeight: "bold", color: "#1f2937", margin: "0", fontSize: "14px" }}>
+                        {item.strategy}
+                      </h3>
+                      {/* 상태 표시 아이콘 */}
+                      {item.status === "favorite" && <span style={{ fontSize: "14px" }}>⭐</span>}
+                      {item.status === "checked" && <span style={{ fontSize: "14px" }}>✅</span>}
+                    </div>
                     <p style={{ fontSize: "12px", color: "#6b7280", margin: "0" }}>
                       {item.date} 등록
                     </p>
                   </div>
-                  <div style={{ display: "flex", gap: "4px" }}>
+                  
+                  {/* 상태 변경 및 액션 버튼들 */}
+                  <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                    {/* 즐겨찾기 토글 */}
+                    <button
+                      onClick={() => changeItemStatus(item.id, item.status === "favorite" ? "saved" : "favorite")}
+                      style={{
+                        padding: "4px 8px",
+                        backgroundColor: item.status === "favorite" ? "#d97706" : "#f3f4f6",
+                        color: item.status === "favorite" ? "white" : "#6b7280",
+                        borderRadius: "4px",
+                        border: "none",
+                        fontSize: "12px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {item.status === "favorite" ? "⭐" : "☆"}
+                    </button>
+                    
+                    {/* 복사 버튼 */}
                     <button
                       onClick={() => copyNumbers(item.numbers)}
                       style={{
@@ -829,8 +782,13 @@ const Purchase: React.FC<PurchaseProps> = ({
                     >
                       복사
                     </button>
+                    
+                    {/* 당첨확인 버튼 */}
                     <button
-                      onClick={() => onCheck(item.id, item.numbers)}
+                      onClick={() => {
+                        onCheck(item.id, item.numbers);
+                        changeItemStatus(item.id, "checked");
+                      }}
                       disabled={item.checked}
                       style={{
                         padding: "4px 8px",
@@ -844,8 +802,13 @@ const Purchase: React.FC<PurchaseProps> = ({
                     >
                       {item.checked ? "확인완료" : "당첨확인"}
                     </button>
+                    
+                    {/* 삭제 버튼 */}
                     <button
-                      onClick={() => onDelete(item.id)}
+                      onClick={() => {
+                        onDelete(item.id);
+                        setLocalHistory(prev => prev.filter(historyItem => historyItem.id !== item.id));
+                      }}
                       style={{
                         padding: "4px 8px",
                         backgroundColor: "#dc2626",
