@@ -183,171 +183,441 @@ const Purchase: React.FC<PurchaseProps> = ({
       {/* 번호 등록 폼 */}
       {showAddForm && (
         <div style={{
-          backgroundColor: "white",
-          padding: "16px",
-          borderRadius: "8px",
-          border: "1px solid #e5e7eb",
+          backgroundColor: "#fef2f2",
+          padding: "20px",
+          borderRadius: "12px",
+          border: "3px solid #dc2626",
           marginBottom: "12px",
+          boxShadow: "0 4px 6px rgba(220, 38, 38, 0.2)",
         }}>
-          <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#1f2937", margin: "0 0 12px 0" }}>
-            번호 등록
-          </h3>
+          {/* 로또 용지 스타일 헤더 */}
+          <div style={{
+            textAlign: "center",
+            marginBottom: "16px",
+            padding: "12px",
+            backgroundColor: "#dc2626",
+            borderRadius: "8px",
+            color: "white",
+          }}>
+            <h3 style={{ 
+              fontSize: "18px", 
+              fontWeight: "bold", 
+              margin: "0 0 4px 0",
+              textShadow: "0 1px 2px rgba(0,0,0,0.3)",
+            }}>
+              🎫 로또 6/45 번호 등록
+            </h3>
+            <p style={{ 
+              fontSize: "12px", 
+              margin: "0",
+              opacity: 0.9
+            }}>
+              구매할 번호를 미리 등록하거나 구매한 번호를 기록하세요
+            </p>
+          </div>
 
-          {/* 입력 방법 선택 */}
-          <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+          {/* 입력 방법 선택 - 로또 용지 스타일 */}
+          <div style={{ 
+            display: "flex", 
+            gap: "8px", 
+            marginBottom: "16px",
+            padding: "4px",
+            backgroundColor: "#fee2e2",
+            borderRadius: "8px",
+            border: "2px solid #fecaca",
+          }}>
             <button
               onClick={() => setAddMethod("omr")}
               style={{
                 flex: 1,
-                padding: "8px",
+                padding: "12px 8px",
                 borderRadius: "6px",
-                border: addMethod === "omr" ? "2px solid #2563eb" : "1px solid #d1d5db",
-                backgroundColor: addMethod === "omr" ? "#eff6ff" : "white",
-                color: addMethod === "omr" ? "#2563eb" : "#6b7280",
+                border: "none",
+                backgroundColor: addMethod === "omr" ? "#dc2626" : "white",
+                color: addMethod === "omr" ? "white" : "#dc2626",
                 fontSize: "12px",
+                fontWeight: "bold",
                 cursor: "pointer",
+                boxShadow: addMethod === "omr" 
+                  ? "0 2px 4px rgba(220, 38, 38, 0.3)" 
+                  : "inset 0 1px 2px rgba(0,0,0,0.1)",
+                transition: "all 0.2s",
               }}
             >
               🎫 OMR 체크
+              <br />
+              <span style={{ fontSize: "10px", opacity: 0.8 }}>
+                (실제 용지처럼)
+              </span>
             </button>
             <button
               onClick={() => setAddMethod("direct")}
               style={{
                 flex: 1,
-                padding: "8px",
+                padding: "12px 8px",
                 borderRadius: "6px",
-                border: addMethod === "direct" ? "2px solid #2563eb" : "1px solid #d1d5db",
-                backgroundColor: addMethod === "direct" ? "#eff6ff" : "white",
-                color: addMethod === "direct" ? "#2563eb" : "#6b7280",
+                border: "none",
+                backgroundColor: addMethod === "direct" ? "#dc2626" : "white",
+                color: addMethod === "direct" ? "white" : "#dc2626",
                 fontSize: "12px",
+                fontWeight: "bold",
                 cursor: "pointer",
+                boxShadow: addMethod === "direct" 
+                  ? "0 2px 4px rgba(220, 38, 38, 0.3)" 
+                  : "inset 0 1px 2px rgba(0,0,0,0.1)",
+                transition: "all 0.2s",
               }}
             >
               ⌨️ 직접 입력
+              <br />
+              <span style={{ fontSize: "10px", opacity: 0.8 }}>
+                (빠른 입력)
+              </span>
             </button>
           </div>
 
-          {/* OMR 스타일 번호 선택 */}
+          {/* 실제 로또 용지 스타일 */}
           {addMethod === "omr" && (
             <div style={{
-              padding: "12px",
-              backgroundColor: "#f8fafc",
-              borderRadius: "6px",
-              border: "1px solid #e2e8f0",
+              padding: "16px",
+              backgroundColor: "#fef7f7",
+              borderRadius: "8px",
+              border: "2px solid #fecaca",
               marginBottom: "12px",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
             }}>
-              <div style={{ textAlign: "center", marginBottom: "8px" }}>
-                <p style={{ fontSize: "12px", color: "#64748b", margin: "0" }}>
-                  로또 6/45 용지처럼 번호를 체크하세요 ({selectedNumbers.length}/6)
+              {/* 헤더 */}
+              <div style={{ 
+                textAlign: "center", 
+                marginBottom: "12px",
+                padding: "8px",
+                backgroundColor: "#fee2e2",
+                borderRadius: "4px",
+                border: "1px solid #fecaca"
+              }}>
+                <h4 style={{ 
+                  fontSize: "14px", 
+                  fontWeight: "bold", 
+                  color: "#dc2626", 
+                  margin: "0 0 4px 0" 
+                }}>
+                  🎫 로또 6/45 A게임
+                </h4>
+                <p style={{ 
+                  fontSize: "11px", 
+                  color: "#991b1b", 
+                  margin: "0" 
+                }}>
+                  아래 번호 중 6개를 선택하세요 ({selectedNumbers.length}/6)
                 </p>
               </div>
               
-              {/* 번호 그리드 */}
+              {/* 실제 로또 용지 스타일 번호 그리드 */}
               <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(9, 1fr)",
-                gap: "4px",
-                maxWidth: "320px",
+                backgroundColor: "white",
+                padding: "12px",
+                borderRadius: "6px",
+                border: "2px solid #dc2626",
+                maxWidth: "350px",
                 margin: "0 auto",
               }}>
-                {Array.from({ length: 45 }, (_, i) => i + 1).map(num => (
-                  <button
-                    key={num}
-                    onClick={() => toggleNumber(num)}
-                    disabled={selectedNumbers.length >= 6 && !selectedNumbers.includes(num)}
-                    style={{
-                      width: "32px",
-                      height: "32px",
-                      borderRadius: "50%",
-                      border: selectedNumbers.includes(num) ? "2px solid #dc2626" : "1px solid #d1d5db",
-                      backgroundColor: selectedNumbers.includes(num) ? "#fef2f2" : "white",
-                      color: selectedNumbers.includes(num) ? "#dc2626" : "#374151",
-                      fontSize: "11px",
-                      fontWeight: selectedNumbers.includes(num) ? "bold" : "normal",
-                      cursor: selectedNumbers.length >= 6 && !selectedNumbers.includes(num) ? "not-allowed" : "pointer",
-                      opacity: selectedNumbers.length >= 6 && !selectedNumbers.includes(num) ? 0.5 : 1,
-                    }}
-                  >
-                    {num}
-                  </button>
+                {/* 10개씩 5줄 배치 */}
+                {[
+                  Array.from({ length: 10 }, (_, i) => i + 1),      // 1-10
+                  Array.from({ length: 10 }, (_, i) => i + 11),     // 11-20  
+                  Array.from({ length: 10 }, (_, i) => i + 21),     // 21-30
+                  Array.from({ length: 10 }, (_, i) => i + 31),     // 31-40
+                  Array.from({ length: 5 }, (_, i) => i + 41),      // 41-45
+                ].map((row, rowIndex) => (
+                  <div key={rowIndex} style={{
+                    display: "flex",
+                    gap: "3px",
+                    marginBottom: "3px",
+                    justifyContent: rowIndex === 4 ? "center" : "flex-start",
+                  }}>
+                    {row.map(num => (
+                      <button
+                        key={num}
+                        onClick={() => toggleNumber(num)}
+                        disabled={selectedNumbers.length >= 6 && !selectedNumbers.includes(num)}
+                        style={{
+                          width: "28px",
+                          height: "24px",
+                          borderRadius: "3px",
+                          border: selectedNumbers.includes(num) 
+                            ? "2px solid #dc2626" 
+                            : "1px solid #d1d5db",
+                          backgroundColor: selectedNumbers.includes(num) 
+                            ? "#dc2626" 
+                            : "white",
+                          color: selectedNumbers.includes(num) 
+                            ? "white" 
+                            : "#374151",
+                          fontSize: "10px",
+                          fontWeight: selectedNumbers.includes(num) ? "bold" : "normal",
+                          cursor: selectedNumbers.length >= 6 && !selectedNumbers.includes(num) 
+                            ? "not-allowed" 
+                            : "pointer",
+                          opacity: selectedNumbers.length >= 6 && !selectedNumbers.includes(num) 
+                            ? 0.3 
+                            : 1,
+                          transition: "all 0.1s",
+                          boxShadow: selectedNumbers.includes(num) 
+                            ? "inset 0 1px 2px rgba(0,0,0,0.3)" 
+                            : "none",
+                        }}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                  </div>
                 ))}
               </div>
 
-              {/* 선택된 번호 표시 */}
+              {/* 용지 하단 정보 */}
+              <div style={{
+                marginTop: "12px",
+                padding: "8px",
+                backgroundColor: "#fee2e2",
+                borderRadius: "4px",
+                textAlign: "center",
+              }}>
+                <p style={{ 
+                  fontSize: "10px", 
+                  color: "#991b1b", 
+                  margin: "0",
+                  lineHeight: "1.3"
+                }}>
+                  ※ 1~45번 중 6개 번호 선택 | 자동선택: 컴퓨터가 임의로 선택
+                  <br />
+                  ※ 구매 후 용지를 분실하지 마세요
+                </p>
+              </div>
+
+              {/* 선택된 번호 확인 구역 */}
               {selectedNumbers.length > 0 && (
-                <div style={{ textAlign: "center", marginTop: "12px" }}>
-                  <p style={{ fontSize: "12px", color: "#6b7280", margin: "0 0 6px 0" }}>선택된 번호</p>
-                  <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
+                <div style={{ 
+                  marginTop: "12px",
+                  padding: "12px",
+                  backgroundColor: "white",
+                  borderRadius: "6px",
+                  border: "2px dashed #dc2626",
+                }}>
+                  <div style={{ textAlign: "center", marginBottom: "8px" }}>
+                    <p style={{ 
+                      fontSize: "12px", 
+                      fontWeight: "bold", 
+                      color: "#dc2626", 
+                      margin: "0" 
+                    }}>
+                      ✓ 선택한 번호 확인
+                    </p>
+                  </div>
+                  <div style={{ 
+                    display: "flex", 
+                    gap: "6px", 
+                    justifyContent: "center",
+                    flexWrap: "wrap"
+                  }}>
                     {selectedNumbers.map((num, i) => (
-                      <LottoNumberBall key={i} number={num} size="sm" />
+                      <div key={i} style={{
+                        width: "32px",
+                        height: "32px",
+                        borderRadius: "4px",
+                        backgroundColor: "#dc2626",
+                        color: "white",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "14px",
+                        fontWeight: "bold",
+                        boxShadow: "0 2px 4px rgba(220, 38, 38, 0.3)",
+                      }}>
+                        {num}
+                      </div>
                     ))}
+                    {/* 빈 칸들 표시 */}
+                    {Array.from({ length: 6 - selectedNumbers.length }).map((_, i) => (
+                      <div key={`empty-${i}`} style={{
+                        width: "32px",
+                        height: "32px",
+                        borderRadius: "4px",
+                        backgroundColor: "#f3f4f6",
+                        border: "2px dashed #d1d5db",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "12px",
+                        color: "#9ca3af",
+                      }}>
+                        ?
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ textAlign: "center", marginTop: "8px" }}>
+                    <p style={{ 
+                      fontSize: "10px", 
+                      color: "#6b7280", 
+                      margin: "0" 
+                    }}>
+                      {selectedNumbers.length === 6 
+                        ? "✅ 6개 번호 선택 완료!" 
+                        : `${6 - selectedNumbers.length}개 더 선택해주세요`}
+                    </p>
                   </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* 직접 입력 */}
+          {/* 직접 입력 - 로또 용지 스타일 */}
           {addMethod === "direct" && (
-            <div style={{ marginBottom: "12px" }}>
-              <label style={{ display: "block", fontSize: "14px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>
-                번호 입력 (쉼표로 구분)
-              </label>
-              <input
-                type="text"
-                value={directInput}
-                onChange={(e) => setDirectInput(e.target.value)}
-                placeholder="예: 3, 7, 15, 16, 19, 43"
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "6px",
+            <div style={{
+              padding: "16px",
+              backgroundColor: "#fef7f7",
+              borderRadius: "8px",
+              border: "2px solid #fecaca",
+              marginBottom: "12px",
+            }}>
+              <div style={{
+                textAlign: "center",
+                marginBottom: "12px",
+                padding: "8px",
+                backgroundColor: "#fee2e2",
+                borderRadius: "4px",
+              }}>
+                <h4 style={{
                   fontSize: "14px",
-                  boxSizing: "border-box",
-                }}
-              />
-              <button
-                onClick={handleDirectInput}
-                style={{
-                  width: "100%",
-                  backgroundColor: "#059669",
-                  color: "white",
-                  padding: "8px",
-                  borderRadius: "6px",
-                  border: "none",
-                  fontSize: "12px",
-                  cursor: "pointer",
-                  marginTop: "8px",
-                }}
-              >
-                번호 적용
-              </button>
+                  fontWeight: "bold",
+                  color: "#dc2626",
+                  margin: "0 0 4px 0"
+                }}>
+                  ⌨️ 빠른 번호 입력
+                </h4>
+                <p style={{
+                  fontSize: "11px",
+                  color: "#991b1b",
+                  margin: "0"
+                }}>
+                  쉼표(,)로 구분하여 6개 번호를 입력하세요
+                </p>
+              </div>
+              
+              <div style={{
+                backgroundColor: "white",
+                padding: "12px",
+                borderRadius: "6px",
+                border: "2px solid #dc2626",
+              }}>
+                <label style={{ 
+                  display: "block", 
+                  fontSize: "12px", 
+                  fontWeight: "bold", 
+                  color: "#dc2626", 
+                  marginBottom: "8px" 
+                }}>
+                  번호 입력 (1~45)
+                </label>
+                <input
+                  type="text"
+                  value={directInput}
+                  onChange={(e) => setDirectInput(e.target.value)}
+                  placeholder="예: 3, 7, 15, 16, 19, 43"
+                  style={{
+                    width: "100%",
+                    padding: "10px",
+                    border: "2px solid #fecaca",
+                    borderRadius: "4px",
+                    fontSize: "14px",
+                    boxSizing: "border-box",
+                    textAlign: "center",
+                    fontWeight: "bold",
+                    color: "#dc2626",
+                  }}
+                />
+                <button
+                  onClick={handleDirectInput}
+                  style={{
+                    width: "100%",
+                    backgroundColor: "#dc2626",
+                    color: "white",
+                    padding: "10px",
+                    borderRadius: "4px",
+                    border: "none",
+                    fontSize: "12px",
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                    marginTop: "8px",
+                    boxShadow: "0 2px 4px rgba(220, 38, 38, 0.3)",
+                  }}
+                >
+                  🎯 번호 적용하기
+                </button>
+              </div>
+              
+              <div style={{
+                marginTop: "8px",
+                padding: "8px",
+                backgroundColor: "#fee2e2",
+                borderRadius: "4px",
+                textAlign: "center",
+              }}>
+                <p style={{
+                  fontSize: "10px",
+                  color: "#991b1b",
+                  margin: "0",
+                  lineHeight: "1.3"
+                }}>
+                  💡 팁: "3,7,15,16,19,43" 처럼 쉼표로 구분해서 입력하세요
+                  <br />
+                  중복 번호나 범위 밖 번호는 자동으로 제외됩니다
+                </p>
+              </div>
             </div>
           )}
 
-          {/* 메모 */}
-          <div style={{ marginBottom: "12px" }}>
-            <label style={{ display: "block", fontSize: "14px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>
-              메모 (선택사항)
+          {/* 메모 입력 - 로또 용지 스타일 */}
+          <div style={{
+            marginBottom: "12px",
+            padding: "12px",
+            backgroundColor: "#fffbeb",
+            borderRadius: "6px",
+            border: "1px solid #fcd34d",
+          }}>
+            <label style={{ 
+              display: "block", 
+              fontSize: "12px", 
+              fontWeight: "bold", 
+              color: "#d97706", 
+              marginBottom: "6px" 
+            }}>
+              📝 메모 (선택사항)
             </label>
             <input
               type="text"
               value={memo}
               onChange={(e) => setMemo(e.target.value)}
-              placeholder="예: 신촌 로또방에서 구매 예정"
+              placeholder="예: 신촌 로또방에서 구매 예정, 행운의 번호"
               style={{
                 width: "100%",
                 padding: "8px 12px",
-                border: "1px solid #d1d5db",
-                borderRadius: "6px",
-                fontSize: "14px",
+                border: "1px solid #fcd34d",
+                borderRadius: "4px",
+                fontSize: "12px",
                 boxSizing: "border-box",
+                backgroundColor: "white",
               }}
             />
+            <p style={{
+              fontSize: "10px",
+              color: "#92400e",
+              margin: "4px 0 0 0",
+            }}>
+              💡 구매 장소, 구매 예정일, 특별한 의미 등을 기록하세요
+            </p>
           </div>
 
-          {/* 저장 버튼 */}
+          {/* 저장 버튼들 - 로또 용지 스타일 */}
           <div style={{ display: "flex", gap: "8px" }}>
             <button
               onClick={() => setShowAddForm(false)}
@@ -355,30 +625,39 @@ const Purchase: React.FC<PurchaseProps> = ({
                 flex: 1,
                 backgroundColor: "#6b7280",
                 color: "white",
-                padding: "10px",
+                padding: "12px",
                 borderRadius: "6px",
                 border: "none",
                 fontSize: "14px",
+                fontWeight: "bold",
                 cursor: "pointer",
+                boxShadow: "0 2px 4px rgba(107, 114, 128, 0.3)",
               }}
             >
-              취소
+              ❌ 취소
             </button>
             <button
               onClick={saveNumbers}
               disabled={selectedNumbers.length !== 6}
               style={{
-                flex: 1,
-                backgroundColor: selectedNumbers.length === 6 ? "#2563eb" : "#9ca3af",
+                flex: 2,
+                backgroundColor: selectedNumbers.length === 6 ? "#dc2626" : "#9ca3af",
                 color: "white",
-                padding: "10px",
+                padding: "12px",
                 borderRadius: "6px",
                 border: "none",
                 fontSize: "14px",
+                fontWeight: "bold",
                 cursor: selectedNumbers.length === 6 ? "pointer" : "not-allowed",
+                boxShadow: selectedNumbers.length === 6 
+                  ? "0 2px 4px rgba(220, 38, 38, 0.3)" 
+                  : "none",
+                transition: "all 0.2s",
               }}
             >
-              저장하기
+              {selectedNumbers.length === 6 
+                ? "🎫 번호 저장하기" 
+                : `💭 ${6 - selectedNumbers.length}개 더 선택`}
             </button>
           </div>
         </div>
