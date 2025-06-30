@@ -40,6 +40,14 @@ const LottoApp = () => {
     source: 'fallback'
   });
 
+  // 📅 다음 추첨 정보 상태 추가
+  const [nextDrawInfo, setNextDrawInfo] = useState<{
+    round: number;
+    date: string;
+    estimatedJackpot: number;
+    daysUntilDraw: number;
+  } | null>(null);
+
   // 메뉴 아이템 배열
   const menuItems = [
     { id: "dashboard", name: "🏠 홈" },
@@ -53,6 +61,7 @@ const LottoApp = () => {
   // 실시간 당첨번호 데이터 로드
   useEffect(() => {
     loadLottoData();
+    loadNextDrawInfo(); // 📅 다음 추첨 정보도 로드
   }, []);
 
   const loadLottoData = async () => {
@@ -95,19 +104,65 @@ const LottoApp = () => {
     }
   };
 
-  // 수동 데이터 새로고침
+  // 📅 다음 추첨 정보 로드
+  const loadNextDrawInfo = async () => {
+    try {
+      console.log('📅 다음 추첨 정보 로딩...');
+      const nextInfo = await lottoDataManager.getNextDrawInfo();
+      setNextDrawInfo(nextInfo);
+      console.log('📅 다음 추첨 정보 로드 완료:', nextInfo);
+    } catch (error) {
+      console.error('❌ 다음 추첨 정보 로드 실패:', error);
+      // 폴백 정보 계산
+      const fallbackInfo = {
+        round: pastWinningNumbers.length > 0 ? 
+          (parseInt(pastWinningNumbers[0][0]?.toString()) || 1177) + 1 : 1179,
+        date: getNextSaturday(),
+        estimatedJackpot: 3500000000,
+        daysUntilDraw: getDaysUntilNextSaturday()
+      };
+      setNextDrawInfo(fallbackInfo);
+    }
+  };
+
+  // 수동 데이터 새로고침 (개선됨)
   const refreshData = async () => {
     try {
+      console.log('🔄 전체 데이터 새로고침 시작...');
+      setIsDataLoading(true);
+      
+      // 1. 로또 당첨번호 데이터 업데이트
       const result = await lottoDataManager.forceUpdate();
+      
+      // 2. 당첨번호 데이터 다시 로드
+      await loadLottoData();
+      
+      // 3. 다음 추첨 정보 다시 로드
+      await loadNextDrawInfo();
+      
       if (result.success) {
-        await loadLottoData();
-        alert('데이터가 업데이트되었습니다!');
+        alert('✅ 모든 데이터가 업데이트되었습니다!');
       } else {
-        alert('데이터 업데이트에 실패했습니다: ' + result.message);
+        alert('⚠️ 일부 데이터 업데이트에 실패했습니다: ' + result.message);
       }
     } catch (error) {
-      alert('데이터 새로고침 중 오류가 발생했습니다.');
+      console.error('❌ 데이터 새로고침 중 오류:', error);
+      alert('❌ 데이터 새로고침 중 오류가 발생했습니다.');
     }
+  };
+
+  // 유틸리티 함수들
+  const getNextSaturday = (): string => {
+    const now = new Date();
+    const daysUntilSaturday = (6 - now.getDay()) % 7 || 7;
+    const nextSaturday = new Date(now);
+    nextSaturday.setDate(now.getDate() + daysUntilSaturday);
+    return nextSaturday.toISOString().split('T')[0];
+  };
+
+  const getDaysUntilNextSaturday = (): number => {
+    const now = new Date();
+    return (6 - now.getDay()) % 7 || 7;
   };
 
   // 로또 번호 생성 로직들 (기존과 동일하지만 실시간 데이터 사용)
@@ -175,8 +230,9 @@ const LottoApp = () => {
     const data = {
       purchaseHistory,
       dataStatus,
+      nextDrawInfo, // 📅 다음 추첨 정보도 포함
       exportDate: new Date().toISOString(),
-      version: "2.0.0",
+      version: "2.1.0", // 📅 버전 업데이트
     };
 
     const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -196,10 +252,27 @@ const LottoApp = () => {
     if (data.purchaseHistory) {
       setPurchaseHistory(data.purchaseHistory);
     }
+    // 📅 다음 추첨 정보도 가져오기 (선택적)
+    if (data.nextDrawInfo) {
+      setNextDrawInfo(data.nextDrawInfo);
+    }
   };
 
   const resetData = () => {
     setPurchaseHistory([]);
+    setNextDrawInfo(null); // 📅 다음 추첨 정보도 초기화
+  };
+
+  // 📅 개선된 Settings props
+  const settingsProps = {
+    onDataExport: exportData,
+    onDataImport: importData,
+    onDataReset: resetData,
+    onRefreshData: refreshData, // 📅 새로고침 기능 추가
+    dataStatus: {
+      ...dataStatus,
+      nextDrawInfo // 📅 다음 추첨 정보 포함
+    }
   };
 
   // 컴포넌트 렌더링
@@ -217,7 +290,8 @@ const LottoApp = () => {
             {...commonProps}
             onMenuChange={setCurrentMenu}
             generate1stGradeNumbers={generate1stGradeNumbers}
-            onRefreshData={refreshData}
+            onRefreshData={refreshData} // 📅 새로고침 함수 전달
+            nextDrawInfo={nextDrawInfo} // 📅 다음 추첨 정보 전달 (선택적)
           />
         );
       case "recommend":
@@ -242,15 +316,7 @@ const LottoApp = () => {
           />
         );
       case "settings":
-        return (
-          <Settings
-            onDataExport={exportData}
-            onDataImport={importData}
-            onDataReset={resetData}
-            onRefreshData={refreshData}
-            dataStatus={dataStatus}
-          />
-        );
+        return <Settings {...settingsProps} />;
       default:
         return (
           <Dashboard
@@ -258,6 +324,7 @@ const LottoApp = () => {
             onMenuChange={setCurrentMenu}
             generate1stGradeNumbers={generate1stGradeNumbers}
             onRefreshData={refreshData}
+            nextDrawInfo={nextDrawInfo}
           />
         );
     }
@@ -315,17 +382,33 @@ const LottoApp = () => {
             }}
             title={dataStatus.isRealTime ? "실시간 데이터" : "오프라인 데이터"}
           />
+          {/* 📅 다음 추첨 D-Day 표시 */}
+          {nextDrawInfo && nextDrawInfo.daysUntilDraw <= 1 && (
+            <span style={{
+              fontSize: "10px",
+              padding: "2px 6px",
+              backgroundColor: "#ef4444",
+              borderRadius: "4px",
+              fontWeight: "bold",
+              animation: "pulse 2s infinite"
+            }}>
+              {nextDrawInfo.daysUntilDraw === 0 ? "오늘 추첨!" : "내일 추첨!"}
+            </span>
+          )}
         </div>
         <button
           onClick={refreshData}
+          disabled={isDataLoading}
           style={{
             padding: "6px",
             backgroundColor: "transparent",
             border: "none",
             color: "white",
-            cursor: "pointer",
+            cursor: isDataLoading ? "not-allowed" : "pointer",
             borderRadius: "4px",
             fontSize: "14px",
+            opacity: isDataLoading ? 0.6 : 1,
+            animation: isDataLoading ? "spin 2s linear infinite" : "none"
           }}
           title="데이터 새로고침"
         >
@@ -453,6 +536,25 @@ const LottoApp = () => {
                     {dataStatus.lastUpdate.toLocaleTimeString()}
                   </div>
                 )}
+                {/* 📅 다음 추첨 정보 */}
+                {nextDrawInfo && (
+                  <div style={{ 
+                    marginTop: "8px", 
+                    padding: "6px", 
+                    backgroundColor: "#f0fdf4", 
+                    borderRadius: "4px",
+                    border: "1px solid #bbf7d0"
+                  }}>
+                    <div style={{ color: "#166534", fontWeight: "500", fontSize: "11px" }}>
+                      📅 다음 {nextDrawInfo.round}회차
+                    </div>
+                    <div style={{ color: "#16a34a", fontSize: "10px" }}>
+                      {nextDrawInfo.daysUntilDraw === 0 ? "오늘 추첨!" : 
+                       nextDrawInfo.daysUntilDraw === 1 ? "내일 추첨!" : 
+                       `${nextDrawInfo.daysUntilDraw}일 후`}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -501,6 +603,14 @@ const LottoApp = () => {
         {dataStatus.source === 'crawled' && (
           <span style={{ color: "#059669", marginLeft: "8px" }}>
             • 실시간 연동
+          </span>
+        )}
+        {/* 📅 다음 추첨 미니 정보 */}
+        {nextDrawInfo && nextDrawInfo.daysUntilDraw <= 3 && (
+          <span style={{ color: "#dc2626", marginLeft: "8px", fontWeight: "bold" }}>
+            • 다음 추첨 {nextDrawInfo.daysUntilDraw === 0 ? "오늘!" : 
+                        nextDrawInfo.daysUntilDraw === 1 ? "내일!" : 
+                        `${nextDrawInfo.daysUntilDraw}일 후`}
           </span>
         )}
       </div>
