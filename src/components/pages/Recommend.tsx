@@ -454,7 +454,7 @@ const Recommend: React.FC<RecommendProps> = ({
           )}
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>>
           {recommendedStrategies.map((strategy, index) => {
             const confStyle = getConfidenceStyle(strategy.confidence);
             
@@ -533,7 +533,10 @@ const Recommend: React.FC<RecommendProps> = ({
                   </div>
                   
                   <button
-                    onClick={() => onAddToPurchaseHistory(strategy.numbers, strategy.name)}
+                    onClick={() => {
+                      onAddToPurchaseHistory(strategy.numbers, strategy.name);
+                      alert('✅ 내번호함에 저장되었습니다!');
+                    }}
                     style={{
                       background: "linear-gradient(45deg, #2563eb, #3b82f6)",
                       color: "white",
@@ -546,16 +549,8 @@ const Recommend: React.FC<RecommendProps> = ({
                       boxShadow: "0 2px 8px rgba(37, 99, 235, 0.3)",
                       transition: "all 0.2s"
                     }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.transform = "translateY(-2px)";
-                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(37, 99, 235, 0.4)";
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.transform = "translateY(0)";
-                      e.currentTarget.style.boxShadow = "0 2px 8px rgba(37, 99, 235, 0.3)";
-                    }}
                   >
-                    💾 저장하기
+                    🗂️ 내번호함에 추가
                   </button>
                 </div>
                 
