@@ -731,7 +731,7 @@ const Stats: React.FC<StatsProps> = ({
                 onClick={() => setAnalysisRange(option.value as any)}
                 disabled={isAnalyzing}
                 style={{
-                  padding: "10px 16px",
+                  padding: "10px 6px",
                   borderRadius: "8px",
                   border: "1px solid #e2e8f0",
                   backgroundColor:
@@ -743,9 +743,10 @@ const Stats: React.FC<StatsProps> = ({
                   transition: "all 0.2s",
                   opacity: isAnalyzing ? 0.6 : 1,
                   flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                   textAlign: "center",
-                  whiteSpace: "nowrap",
-                  maxWidth: "80px",
                 }}
               >
                 {option.label}
