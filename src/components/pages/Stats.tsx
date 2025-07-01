@@ -629,98 +629,146 @@ const Stats: React.FC<StatsProps> = ({
         <div
           style={{
             display: "flex",
-            alignItems: "center",
+            alignItems: "flex-start",
             justifyContent: "space-between",
-            marginBottom: "12px",
+            marginBottom: "16px",
+            gap: "12px",
           }}
         >
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <h2
               style={{
-                fontSize: "20px",
+                fontSize: "18px",
                 fontWeight: "bold",
                 color: "#1f2937",
-                margin: "0 0 4px 0",
+                margin: "0 0 6px 0",
+                lineHeight: "1.3",
               }}
             >
               📊 통계분석 대시보드
             </h2>
-            <p style={{ fontSize: "14px", color: "#6b7280", margin: "0" }}>
+            <p
+              style={{
+                fontSize: "13px",
+                color: "#6b7280",
+                margin: "0",
+                lineHeight: "1.4",
+              }}
+            >
               {pastWinningNumbers.length}회차 빅데이터 심층 분석
-              {lastAnalysisTime && (
-                <span
-                  style={{
-                    marginLeft: "8px",
-                    fontSize: "12px",
-                    color: "#059669",
-                  }}
-                >
-                  (마지막 분석: {lastAnalysisTime.toLocaleTimeString()})
-                </span>
-              )}
             </p>
+            {lastAnalysisTime && (
+              <p
+                style={{
+                  fontSize: "11px",
+                  color: "#059669",
+                  margin: "4px 0 0 0",
+                  lineHeight: "1.2",
+                }}
+              >
+                마지막 분석: {lastAnalysisTime.toLocaleTimeString()}
+              </p>
+            )}
           </div>
 
           {/* 분석 상태 표시 */}
           <div
             style={{
-              padding: "8px 12px",
+              padding: "8px 10px",
               backgroundColor: isAnalyzing ? "#fef3c7" : "#f0fdf4",
               borderRadius: "8px",
               border: `1px solid ${isAnalyzing ? "#fcd34d" : "#bbf7d0"}`,
-              fontSize: "12px",
-              fontWeight: "500",
+              fontSize: "11px",
+              fontWeight: "600",
               color: isAnalyzing ? "#92400e" : "#166534",
+              whiteSpace: "nowrap",
+              textAlign: "center",
+              minWidth: "70px",
             }}
           >
-            {isAnalyzing ? "🔄 분석중..." : "✅ 분석완료"}
+            {isAnalyzing ? "🔄 분석중" : "✅ 분석완료"}
           </div>
         </div>
 
         {/* 분석 범위 선택 */}
         <div
           style={{
-            display: "flex",
-            gap: "6px",
-            padding: "8px",
+            padding: "12px",
             backgroundColor: "#f8fafc",
             borderRadius: "8px",
             border: "1px solid #e2e8f0",
           }}
         >
-          <span
+          {/* 분석범위 제목 */}
+          <div
             style={{
-              fontSize: "12px",
-              color: "#6b7280",
-              fontWeight: "500",
-              alignSelf: "center",
+              textAlign: "center",
+              marginBottom: "12px",
             }}
           >
-            📈 분석범위:
-          </span>
-          {rangeOptions.map((option) => (
-            <button
-              key={option.value}
-              onClick={() => setAnalysisRange(option.value as any)}
-              disabled={isAnalyzing}
+            <span
               style={{
-                padding: "6px 12px",
-                borderRadius: "6px",
-                border: "1px solid #e2e8f0",
-                backgroundColor:
-                  analysisRange === option.value ? "#2563eb" : "white",
-                color: analysisRange === option.value ? "white" : "#374151",
-                fontSize: "11px",
-                cursor: isAnalyzing ? "not-allowed" : "pointer",
-                fontWeight: analysisRange === option.value ? "600" : "400",
-                transition: "all 0.2s",
-                opacity: isAnalyzing ? 0.6 : 1,
+                fontSize: "13px",
+                color: "#374151",
+                fontWeight: "600",
               }}
             >
-              {option.label}
-              <div style={{ fontSize: "9px", opacity: 0.8 }}>{option.desc}</div>
-            </button>
-          ))}
+              📈 분석범위
+            </span>
+          </div>
+
+          {/* 버튼들 */}
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              justifyContent: "center",
+            }}
+          >
+            {rangeOptions.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => setAnalysisRange(option.value as any)}
+                disabled={isAnalyzing}
+                style={{
+                  padding: "10px 16px",
+                  borderRadius: "8px",
+                  border: "1px solid #e2e8f0",
+                  backgroundColor:
+                    analysisRange === option.value ? "#2563eb" : "white",
+                  color: analysisRange === option.value ? "white" : "#374151",
+                  fontSize: "12px",
+                  cursor: isAnalyzing ? "not-allowed" : "pointer",
+                  fontWeight: analysisRange === option.value ? "600" : "500",
+                  transition: "all 0.2s",
+                  opacity: isAnalyzing ? 0.6 : 1,
+                  flex: 1,
+                  textAlign: "center",
+                  whiteSpace: "nowrap",
+                  maxWidth: "80px",
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          {/* 선택된 옵션 설명 */}
+          <div
+            style={{
+              textAlign: "center",
+              marginTop: "8px",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "10px",
+                color: "#6b7280",
+              }}
+            >
+              {rangeOptions.find((opt) => opt.value === analysisRange)?.desc}
+            </span>
+          </div>
         </div>
       </div>
 
