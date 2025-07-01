@@ -87,13 +87,13 @@ const Stats: React.FC<StatsProps> = ({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [lastAnalysisTime, setLastAnalysisTime] = useState<Date | null>(null);
 
-  // 탭 정보
+  // 탭 정보 - 텍스트 크기 조정
   const tabs = [
-    { id: "frequency", name: "🔢 번호 빈도", desc: "각 번호별 출현 빈도" },
-    { id: "zones", name: "📊 구간 분석", desc: "번호 구간별 분포" },
-    { id: "patterns", name: "🧩 패턴 분석", desc: "홀짝, 연속번호 등" },
-    { id: "trends", name: "📈 트렌드", desc: "시기별 변화 추이" },
-    { id: "prizes", name: "💰 당첨금", desc: "당첨금 통계" },
+    { id: "frequency", name: "번호빈도", desc: "출현 빈도" },
+    { id: "zones", name: "구간분석", desc: "구간별 분포" },
+    { id: "patterns", name: "패턴분석", desc: "홀짝, 연속번호" },
+    { id: "trends", name: "트렌드", desc: "시기별 변화" },
+    { id: "prizes", name: "당첨금", desc: "당첨금 통계" },
   ];
 
   // 분석 범위 옵션
@@ -199,8 +199,8 @@ const Stats: React.FC<StatsProps> = ({
 
       // 트렌드 분석
       let trend: "hot" | "cold" | "normal" = "normal";
-      if (recentFreq >= 4) trend = "hot";
-      else if (recentFreq === 0 && gap > 10) trend = "cold";
+      if (recentFreq >= 3) trend = "hot";
+      else if (recentFreq <= 1 && gap >= 5) trend = "cold";
 
       // 순위 변화 계산 (임시)
       const rankChange = Math.floor(Math.random() * 21) - 10;
@@ -772,7 +772,7 @@ const Stats: React.FC<StatsProps> = ({
         </div>
       </div>
 
-      {/* 탭 메뉴 */}
+      {/* 탭 메뉴 - 개선된 버전 */}
       <div
         style={{
           backgroundColor: "white",
@@ -796,11 +796,11 @@ const Stats: React.FC<StatsProps> = ({
               disabled={isAnalyzing}
               style={{
                 flex: "1",
-                padding: "12px 8px",
+                padding: "14px 6px",
                 border: "none",
                 backgroundColor: activeTab === tab.id ? "#eff6ff" : "white",
                 color: activeTab === tab.id ? "#2563eb" : "#6b7280",
-                fontSize: "12px",
+                fontSize: "11px",
                 cursor: isAnalyzing ? "not-allowed" : "pointer",
                 borderBottom:
                   activeTab === tab.id
@@ -808,14 +808,15 @@ const Stats: React.FC<StatsProps> = ({
                     : "2px solid transparent",
                 transition: "all 0.2s",
                 textAlign: "center",
-                minWidth: "80px",
+                minWidth: "60px",
                 opacity: isAnalyzing ? 0.6 : 1,
+                lineHeight: "1.2",
               }}
             >
               <div style={{ fontWeight: "600", marginBottom: "2px" }}>
                 {tab.name}
               </div>
-              <div style={{ fontSize: "10px", opacity: 0.8 }}>{tab.desc}</div>
+              <div style={{ fontSize: "9px", opacity: 0.8 }}>{tab.desc}</div>
             </button>
           ))}
         </div>
@@ -854,7 +855,7 @@ const Stats: React.FC<StatsProps> = ({
             </div>
           ) : (
             <>
-              {/* 번호 빈도 분석 */}
+              {/* 번호 빈도 분석 - 개선된 레이아웃 */}
               {activeTab === "frequency" && (
                 <div>
                   <h3
@@ -1041,12 +1042,14 @@ const Stats: React.FC<StatsProps> = ({
                           </h4>
                           <div
                             style={{
-                              display: "flex",
-                              gap: "4px",
-                              flexWrap: "wrap",
+                              display: "grid",
+                              gridTemplateColumns: "repeat(4, 1fr)",
+                              gap: "8px",
+                              maxWidth: "400px",
+                              margin: "0 auto",
                             }}
                           >
-                            {trendNumbers.slice(0, 15).map((stat) => (
+                            {trendNumbers.slice(0, 12).map((stat) => (
                               <div
                                 key={stat.number}
                                 style={{
