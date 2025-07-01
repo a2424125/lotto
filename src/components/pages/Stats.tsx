@@ -42,7 +42,11 @@ interface PatternStats {
 interface TrendStats {
   weeklyTrends: Array<{ week: string; frequency: number; change: number }>;
   monthlyTrends: Array<{ month: string; frequency: number; numbers: number[] }>;
-  seasonalTrends: Array<{ season: string; frequency: number; characteristics: string }>;
+  seasonalTrends: Array<{
+    season: string;
+    frequency: number;
+    characteristics: string;
+  }>;
   yearlyTrends: Array<{ year: string; frequency: number; avgSum: number }>;
   recentMovement: "상승" | "하락" | "안정";
   trendConfidence: number;
@@ -55,7 +59,11 @@ interface PrizeStats {
   maxPrize: number;
   minPrize: number;
   totalWinners: number;
-  prizeDistribution: Array<{ range: string; count: number; percentage: number }>;
+  prizeDistribution: Array<{
+    range: string;
+    count: number;
+    percentage: number;
+  }>;
   winnerDistribution: Array<{ count: number; frequency: number }>;
   monthlyAverage: Array<{ month: string; avgPrize: number }>;
 }
@@ -186,7 +194,8 @@ const Stats: React.FC<StatsProps> = ({
       const freq = frequency[num] || 0;
       const recentFreq = recentFrequency[num] || 0;
       const percentage = (freq / totalDraws) * 100;
-      const gap = lastAppeared[num] !== undefined ? lastAppeared[num] : totalDraws;
+      const gap =
+        lastAppeared[num] !== undefined ? lastAppeared[num] : totalDraws;
 
       // 트렌드 분석
       let trend: "hot" | "cold" | "normal" = "normal";
@@ -214,11 +223,46 @@ const Stats: React.FC<StatsProps> = ({
   // 📊 구간별 분석 (고도화)
   const analyzeZones = (data: number[][]): ZoneStats[] => {
     const zones = [
-      { zone: "1구간", range: "1-9", start: 1, end: 9, color: "#eab308", expected: 20 },
-      { zone: "2구간", range: "10-19", start: 10, end: 19, color: "#3b82f6", expected: 22.2 },
-      { zone: "3구간", range: "20-29", start: 20, end: 29, color: "#ef4444", expected: 22.2 },
-      { zone: "4구간", range: "30-39", start: 30, end: 39, color: "#6b7280", expected: 22.2 },
-      { zone: "5구간", range: "40-45", start: 40, end: 45, color: "#10b981", expected: 13.3 },
+      {
+        zone: "1구간",
+        range: "1-9",
+        start: 1,
+        end: 9,
+        color: "#eab308",
+        expected: 20,
+      },
+      {
+        zone: "2구간",
+        range: "10-19",
+        start: 10,
+        end: 19,
+        color: "#3b82f6",
+        expected: 22.2,
+      },
+      {
+        zone: "3구간",
+        range: "20-29",
+        start: 20,
+        end: 29,
+        color: "#ef4444",
+        expected: 22.2,
+      },
+      {
+        zone: "4구간",
+        range: "30-39",
+        start: 30,
+        end: 39,
+        color: "#6b7280",
+        expected: 22.2,
+      },
+      {
+        zone: "5구간",
+        range: "40-45",
+        start: 40,
+        end: 45,
+        color: "#10b981",
+        expected: 13.3,
+      },
     ];
 
     return zones.map((zone) => {
@@ -254,7 +298,8 @@ const Stats: React.FC<StatsProps> = ({
 
   // 🧩 패턴 분석 (고도화)
   const analyzePatterns = (data: number[][]): PatternStats => {
-    let totalOdd = 0, totalEven = 0;
+    let totalOdd = 0,
+      totalEven = 0;
     let totalConsecutive = 0;
     const sums: number[] = [];
     const gaps: number[] = [];
@@ -284,10 +329,16 @@ const Stats: React.FC<StatsProps> = ({
       sums.push(sum);
 
       // 합계 구간 분포
-      const sumRange = sum < 100 ? "~100" : 
-                      sum < 130 ? "100-130" :
-                      sum < 160 ? "130-160" :
-                      sum < 190 ? "160-190" : "190~";
+      const sumRange =
+        sum < 100
+          ? "~100"
+          : sum < 130
+          ? "100-130"
+          : sum < 160
+          ? "130-160"
+          : sum < 190
+          ? "160-190"
+          : "190~";
       sumDistribution[sumRange] = (sumDistribution[sumRange] || 0) + 1;
 
       // 간격 분석
@@ -300,7 +351,7 @@ const Stats: React.FC<StatsProps> = ({
 
     const avgSum = sums.reduce((acc, sum) => acc + sum, 0) / sums.length;
     const avgGap = gaps.reduce((acc, gap) => acc + gap, 0) / gaps.length;
-    
+
     // 중간값 계산
     const sortedSums = [...sums].sort((a, b) => a - b);
     const median = sortedSums[Math.floor(sortedSums.length / 2)];
@@ -312,9 +363,9 @@ const Stats: React.FC<StatsProps> = ({
       .map(([gap]) => parseInt(gap));
 
     // 완벽한 밸런스 비율 (3:3 홀짝)
-    const perfectBalanceCount = data.filter(draw => {
+    const perfectBalanceCount = data.filter((draw) => {
       const numbers = draw.slice(0, 6);
-      const oddCount = numbers.filter(n => n % 2 === 1).length;
+      const oddCount = numbers.filter((n) => n % 2 === 1).length;
       return oddCount === 3;
     }).length;
     const perfectBalanceRatio = (perfectBalanceCount / data.length) * 100;
@@ -324,7 +375,8 @@ const Stats: React.FC<StatsProps> = ({
         odd: Math.round((totalOdd / (totalOdd + totalEven)) * 100),
         even: Math.round((totalEven / (totalOdd + totalEven)) * 100),
       },
-      consecutiveNumbers: Math.round((totalConsecutive / data.length) * 100) / 100,
+      consecutiveNumbers:
+        Math.round((totalConsecutive / data.length) * 100) / 100,
       sumRange: {
         min: Math.min(...sums),
         max: Math.max(...sums),
@@ -352,11 +404,17 @@ const Stats: React.FC<StatsProps> = ({
     // 최근 추세 판단
     const recentNumbers = data.slice(0, 10).flat().slice(0, 60);
     const olderNumbers = data.slice(10, 20).flat().slice(0, 60);
-    const recentAvg = recentNumbers.reduce((a, b) => a + b, 0) / recentNumbers.length;
-    const olderAvg = olderNumbers.reduce((a, b) => a + b, 0) / olderNumbers.length;
-    
-    const recentMovement = recentAvg > olderAvg + 2 ? "상승" : 
-                          recentAvg < olderAvg - 2 ? "하락" : "안정";
+    const recentAvg =
+      recentNumbers.reduce((a, b) => a + b, 0) / recentNumbers.length;
+    const olderAvg =
+      olderNumbers.reduce((a, b) => a + b, 0) / olderNumbers.length;
+
+    const recentMovement =
+      recentAvg > olderAvg + 2
+        ? "상승"
+        : recentAvg < olderAvg - 2
+        ? "하락"
+        : "안정";
 
     return {
       weeklyTrends,
@@ -378,12 +436,34 @@ const Stats: React.FC<StatsProps> = ({
   };
 
   const analyzeMonthlyTrends = (data: number[][]) => {
-    const months = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
-    return months.map(month => {
-      const monthData = data.filter((_, index) => index % 12 === months.indexOf(month));
-      const avgFreq = monthData.length > 0 ? 
-        monthData.reduce((acc, draw) => acc + draw.slice(0, 6).reduce((a, b) => a + b, 0), 0) / monthData.length / 6 : 0;
-      
+    const months = [
+      "1월",
+      "2월",
+      "3월",
+      "4월",
+      "5월",
+      "6월",
+      "7월",
+      "8월",
+      "9월",
+      "10월",
+      "11월",
+      "12월",
+    ];
+    return months.map((month) => {
+      const monthData = data.filter(
+        (_, index) => index % 12 === months.indexOf(month)
+      );
+      const avgFreq =
+        monthData.length > 0
+          ? monthData.reduce(
+              (acc, draw) => acc + draw.slice(0, 6).reduce((a, b) => a + b, 0),
+              0
+            ) /
+            monthData.length /
+            6
+          : 0;
+
       return {
         month,
         frequency: Math.round(avgFreq),
@@ -394,20 +474,41 @@ const Stats: React.FC<StatsProps> = ({
 
   const analyzeSeasonalTrends = (data: number[][]) => {
     return [
-      { season: "봄 (3-5월)", frequency: 78, characteristics: "중간대 번호 선호" },
-      { season: "여름 (6-8월)", frequency: 82, characteristics: "높은 번호 출현 증가" },
-      { season: "가을 (9-11월)", frequency: 75, characteristics: "균형잡힌 분포" },
-      { season: "겨울 (12-2월)", frequency: 80, characteristics: "낮은 번호 빈도 상승" },
+      {
+        season: "봄 (3-5월)",
+        frequency: 78,
+        characteristics: "중간대 번호 선호",
+      },
+      {
+        season: "여름 (6-8월)",
+        frequency: 82,
+        characteristics: "높은 번호 출현 증가",
+      },
+      {
+        season: "가을 (9-11월)",
+        frequency: 75,
+        characteristics: "균형잡힌 분포",
+      },
+      {
+        season: "겨울 (12-2월)",
+        frequency: 80,
+        characteristics: "낮은 번호 빈도 상승",
+      },
     ];
   };
 
   const analyzeYearlyTrends = (data: number[][]) => {
     const years = ["2023", "2024", "2025"];
-    return years.map(year => {
+    return years.map((year) => {
       const yearData = data.slice(0, 52); // 1년치 추정
-      const avgSum = yearData.length > 0 ? 
-        yearData.reduce((acc, draw) => acc + draw.slice(0, 6).reduce((a, b) => a + b, 0), 0) / yearData.length : 0;
-      
+      const avgSum =
+        yearData.length > 0
+          ? yearData.reduce(
+              (acc, draw) => acc + draw.slice(0, 6).reduce((a, b) => a + b, 0),
+              0
+            ) / yearData.length
+          : 0;
+
       return {
         year,
         frequency: yearData.length,
@@ -436,7 +537,7 @@ const Stats: React.FC<StatsProps> = ({
       { range: "30억 이상", count: 0, percentage: 0 },
     ];
 
-    prizes.forEach(prize => {
+    prizes.forEach((prize) => {
       const eok = prize / 100000000;
       if (eok < 10) prizeDistribution[0].count++;
       else if (eok < 20) prizeDistribution[1].count++;
@@ -444,7 +545,7 @@ const Stats: React.FC<StatsProps> = ({
       else prizeDistribution[3].count++;
     });
 
-    prizeDistribution.forEach(dist => {
+    prizeDistribution.forEach((dist) => {
       dist.percentage = Math.round((dist.count / prizes.length) * 100);
     });
 
@@ -483,17 +584,23 @@ const Stats: React.FC<StatsProps> = ({
   // 트렌드 색상 결정
   const getTrendColor = (trend: "hot" | "cold" | "normal"): string => {
     switch (trend) {
-      case "hot": return "#ef4444";
-      case "cold": return "#3b82f6";
-      default: return "#6b7280";
+      case "hot":
+        return "#ef4444";
+      case "cold":
+        return "#3b82f6";
+      default:
+        return "#6b7280";
     }
   };
 
   const getTrendEmoji = (trend: "hot" | "cold" | "normal"): string => {
     switch (trend) {
-      case "hot": return "🔥";
-      case "cold": return "🧊";
-      default: return "📊";
+      case "hot":
+        return "🔥";
+      case "cold":
+        return "🧊";
+      default:
+        return "📊";
     }
   };
 
@@ -541,7 +648,13 @@ const Stats: React.FC<StatsProps> = ({
             <p style={{ fontSize: "14px", color: "#6b7280", margin: "0" }}>
               {pastWinningNumbers.length}회차 빅데이터 심층 분석
               {lastAnalysisTime && (
-                <span style={{ marginLeft: "8px", fontSize: "12px", color: "#059669" }}>
+                <span
+                  style={{
+                    marginLeft: "8px",
+                    fontSize: "12px",
+                    color: "#059669",
+                  }}
+                >
                   (마지막 분석: {lastAnalysisTime.toLocaleTimeString()})
                 </span>
               )}
@@ -549,15 +662,17 @@ const Stats: React.FC<StatsProps> = ({
           </div>
 
           {/* 분석 상태 표시 */}
-          <div style={{
-            padding: "8px 12px",
-            backgroundColor: isAnalyzing ? "#fef3c7" : "#f0fdf4",
-            borderRadius: "8px",
-            border: `1px solid ${isAnalyzing ? "#fcd34d" : "#bbf7d0"}`,
-            fontSize: "12px",
-            fontWeight: "500",
-            color: isAnalyzing ? "#92400e" : "#166534"
-          }}>
+          <div
+            style={{
+              padding: "8px 12px",
+              backgroundColor: isAnalyzing ? "#fef3c7" : "#f0fdf4",
+              borderRadius: "8px",
+              border: `1px solid ${isAnalyzing ? "#fcd34d" : "#bbf7d0"}`,
+              fontSize: "12px",
+              fontWeight: "500",
+              color: isAnalyzing ? "#92400e" : "#166534",
+            }}
+          >
             {isAnalyzing ? "🔄 분석중..." : "✅ 분석완료"}
           </div>
         </div>
@@ -677,7 +792,13 @@ const Stats: React.FC<StatsProps> = ({
                 {analysisRange === "all" ? "전체" : `최근 ${analysisRange}회차`}{" "}
                 데이터를 분석하고 있습니다...
               </p>
-              <div style={{ marginTop: "12px", fontSize: "12px", color: "#059669" }}>
+              <div
+                style={{
+                  marginTop: "12px",
+                  fontSize: "12px",
+                  color: "#059669",
+                }}
+              >
                 <div>📊 번호 빈도 계산 중...</div>
                 <div>📈 트렌드 패턴 인식 중...</div>
                 <div>🎯 통계 모델 생성 중...</div>
@@ -791,12 +912,16 @@ const Stats: React.FC<StatsProps> = ({
                               {stat.percentage}%
                             </div>
                             {stat.rankChange !== 0 && (
-                              <div style={{ 
-                                fontSize: "8px", 
-                                color: stat.rankChange > 0 ? "#059669" : "#dc2626",
-                                fontWeight: "bold"
-                              }}>
-                                {stat.rankChange > 0 ? "↗" : "↘"}{Math.abs(stat.rankChange)}
+                              <div
+                                style={{
+                                  fontSize: "8px",
+                                  color:
+                                    stat.rankChange > 0 ? "#059669" : "#dc2626",
+                                  fontWeight: "bold",
+                                }}
+                              >
+                                {stat.rankChange > 0 ? "↗" : "↘"}
+                                {Math.abs(stat.rankChange)}
                               </div>
                             )}
                           </div>
@@ -929,15 +1054,29 @@ const Stats: React.FC<StatsProps> = ({
                   </h3>
 
                   {/* 구간별 요약 */}
-                  <div style={{
-                    backgroundColor: "#f0fdf4",
-                    padding: "12px",
-                    borderRadius: "8px",
-                    marginBottom: "16px",
-                    border: "1px solid #bbf7d0"
-                  }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: "12px", color: "#166534", fontWeight: "600" }}>
+                  <div
+                    style={{
+                      backgroundColor: "#f0fdf4",
+                      padding: "12px",
+                      borderRadius: "8px",
+                      marginBottom: "16px",
+                      border: "1px solid #bbf7d0",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: "12px",
+                          color: "#166534",
+                          fontWeight: "600",
+                        }}
+                      >
                         🎯 분석 요약
                       </span>
                       <span style={{ fontSize: "10px", color: "#16a34a" }}>
@@ -992,13 +1131,17 @@ const Stats: React.FC<StatsProps> = ({
                             >
                               출현 빈도: {zone.frequency}회 ({zone.percentage}%)
                             </p>
-                            <p style={{
-                              fontSize: "11px",
-                              color: zone.deviation > 0 ? "#059669" : "#dc2626",
-                              margin: "0",
-                              fontWeight: "600"
-                            }}>
-                              {zone.deviation > 0 ? "▲" : "▼"} 예상 대비 {Math.abs(zone.deviation)}%
+                            <p
+                              style={{
+                                fontSize: "11px",
+                                color:
+                                  zone.deviation > 0 ? "#059669" : "#dc2626",
+                                margin: "0",
+                                fontWeight: "600",
+                              }}
+                            >
+                              {zone.deviation > 0 ? "▲" : "▼"} 예상 대비{" "}
+                              {Math.abs(zone.deviation)}%
                             </p>
                           </div>
                           <div
@@ -1047,13 +1190,15 @@ const Stats: React.FC<StatsProps> = ({
                         </div>
 
                         {/* 예상치와 비교 */}
-                        <div style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          fontSize: "10px",
-                          color: "#6b7280",
-                          marginBottom: "12px"
-                        }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            fontSize: "10px",
+                            color: "#6b7280",
+                            marginBottom: "12px",
+                          }}
+                        >
                           <span>예상: {zone.expectedRatio}%</span>
                           <span>실제: {zone.percentage}%</span>
                         </div>
@@ -1121,7 +1266,7 @@ const Stats: React.FC<StatsProps> = ({
                           display: "flex",
                           gap: "16px",
                           alignItems: "center",
-                          marginBottom: "12px"
+                          marginBottom: "12px",
                         }}
                       >
                         <div style={{ flex: 1 }}>
@@ -1209,17 +1354,26 @@ const Stats: React.FC<StatsProps> = ({
                           </div>
                         </div>
                       </div>
-                      
+
                       {/* 완벽한 밸런스 비율 */}
-                      <div style={{
-                        padding: "8px",
-                        backgroundColor: "#f0f9ff",
-                        borderRadius: "6px",
-                        border: "1px solid #bfdbfe",
-                        textAlign: "center"
-                      }}>
-                        <span style={{ fontSize: "12px", color: "#1e40af", fontWeight: "600" }}>
-                          🎯 완벽한 3:3 밸런스: {patternStats.perfectBalanceRatio}%
+                      <div
+                        style={{
+                          padding: "8px",
+                          backgroundColor: "#f0f9ff",
+                          borderRadius: "6px",
+                          border: "1px solid #bfdbfe",
+                          textAlign: "center",
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: "12px",
+                            color: "#1e40af",
+                            fontWeight: "600",
+                          }}
+                        >
+                          🎯 완벽한 3:3 밸런스:{" "}
+                          {patternStats.perfectBalanceRatio}%
                         </span>
                       </div>
                     </div>
@@ -1243,8 +1397,14 @@ const Stats: React.FC<StatsProps> = ({
                       >
                         🔗 연속번호 & 간격 분석
                       </h4>
-                      
-                      <div style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "12px",
+                          marginBottom: "12px",
+                        }}
+                      >
                         <div
                           style={{
                             flex: 1,
@@ -1252,7 +1412,7 @@ const Stats: React.FC<StatsProps> = ({
                             backgroundColor: "#f0fdf4",
                             borderRadius: "8px",
                             border: "1px solid #bbf7d0",
-                            textAlign: "center"
+                            textAlign: "center",
                           }}
                         >
                           <div
@@ -1268,7 +1428,7 @@ const Stats: React.FC<StatsProps> = ({
                             회차당 평균 연속번호
                           </div>
                         </div>
-                        
+
                         <div
                           style={{
                             flex: 1,
@@ -1276,7 +1436,7 @@ const Stats: React.FC<StatsProps> = ({
                             backgroundColor: "#fef3c7",
                             borderRadius: "8px",
                             border: "1px solid #fcd34d",
-                            textAlign: "center"
+                            textAlign: "center",
                           }}
                         >
                           <div
@@ -1295,25 +1455,42 @@ const Stats: React.FC<StatsProps> = ({
                       </div>
 
                       {/* 가장 흔한 간격들 */}
-                      <div style={{
-                        padding: "8px",
-                        backgroundColor: "#f8fafc",
-                        borderRadius: "6px",
-                        border: "1px solid #e2e8f0"
-                      }}>
-                        <div style={{ fontSize: "11px", color: "#6b7280", marginBottom: "4px" }}>
+                      <div
+                        style={{
+                          padding: "8px",
+                          backgroundColor: "#f8fafc",
+                          borderRadius: "6px",
+                          border: "1px solid #e2e8f0",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            color: "#6b7280",
+                            marginBottom: "4px",
+                          }}
+                        >
                           🎯 가장 흔한 번호 간격
                         </div>
-                        <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
-                          {patternStats.mostCommonGaps.map(gap => (
-                            <span key={gap} style={{
-                              padding: "2px 6px",
-                              backgroundColor: "#2563eb",
-                              color: "white",
-                              borderRadius: "4px",
-                              fontSize: "10px",
-                              fontWeight: "bold"
-                            }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "4px",
+                            justifyContent: "center",
+                          }}
+                        >
+                          {patternStats.mostCommonGaps.map((gap) => (
+                            <span
+                              key={gap}
+                              style={{
+                                padding: "2px 6px",
+                                backgroundColor: "#2563eb",
+                                color: "white",
+                                borderRadius: "4px",
+                                fontSize: "10px",
+                                fontWeight: "bold",
+                              }}
+                            >
                               {gap}
                             </span>
                           ))}
@@ -1340,7 +1517,13 @@ const Stats: React.FC<StatsProps> = ({
                       >
                         ➕ 당첨번호 합계 분석
                       </h4>
-                      <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "8px",
+                          marginBottom: "12px",
+                        }}
+                      >
                         <div
                           style={{
                             flex: 1,
@@ -1432,35 +1615,79 @@ const Stats: React.FC<StatsProps> = ({
                       </div>
 
                       {/* 합계 구간 분포 */}
-                      <div style={{
-                        padding: "8px",
-                        backgroundColor: "#f9fafb",
-                        borderRadius: "6px",
-                        border: "1px solid #e5e7eb"
-                      }}>
-                        <div style={{ fontSize: "11px", color: "#6b7280", marginBottom: "6px" }}>
+                      <div
+                        style={{
+                          padding: "8px",
+                          backgroundColor: "#f9fafb",
+                          borderRadius: "6px",
+                          border: "1px solid #e5e7eb",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            color: "#6b7280",
+                            marginBottom: "6px",
+                          }}
+                        >
                           📊 합계 구간별 분포
                         </div>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
-                          {Object.entries(patternStats.sumDistribution).map(([range, count]) => (
-                            <div key={range} style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              fontSize: "10px"
-                            }}>
-                              <span style={{ color: "#374151" }}>{range}</span>
-                              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                                <div style={{
-                                  width: `${(count / Math.max(...Object.values(patternStats.sumDistribution))) * 50}px`,
-                                  height: "8px",
-                                  backgroundColor: "#3b82f6",
-                                  borderRadius: "2px"
-                                }} />
-                                <span style={{ color: "#6b7280", minWidth: "20px" }}>{count}</span>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "3px",
+                          }}
+                        >
+                          {Object.entries(patternStats.sumDistribution).map(
+                            ([range, count]) => (
+                              <div
+                                key={range}
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  fontSize: "10px",
+                                }}
+                              >
+                                <span style={{ color: "#374151" }}>
+                                  {range}
+                                </span>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "4px",
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      width: `${
+                                        (count /
+                                          Math.max(
+                                            ...Object.values(
+                                              patternStats.sumDistribution
+                                            )
+                                          )) *
+                                        50
+                                      }px`,
+                                      height: "8px",
+                                      backgroundColor: "#3b82f6",
+                                      borderRadius: "2px",
+                                    }}
+                                  />
+                                  <span
+                                    style={{
+                                      color: "#6b7280",
+                                      minWidth: "20px",
+                                    }}
+                                  >
+                                    {count}
+                                  </span>
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            )
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1485,42 +1712,80 @@ const Stats: React.FC<StatsProps> = ({
                   {trendStats ? (
                     <>
                       {/* 현재 트렌드 요약 */}
-                      <div style={{
-                        padding: "16px",
-                        backgroundColor: trendStats.recentMovement === "상승" ? "#f0fdf4" : 
-                                        trendStats.recentMovement === "하락" ? "#fef2f2" : "#f8fafc",
-                        borderRadius: "8px",
-                        border: `1px solid ${trendStats.recentMovement === "상승" ? "#bbf7d0" : 
-                                             trendStats.recentMovement === "하락" ? "#fecaca" : "#e2e8f0"}`,
-                        marginBottom: "16px"
-                      }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div
+                        style={{
+                          padding: "16px",
+                          backgroundColor:
+                            trendStats.recentMovement === "상승"
+                              ? "#f0fdf4"
+                              : trendStats.recentMovement === "하락"
+                              ? "#fef2f2"
+                              : "#f8fafc",
+                          borderRadius: "8px",
+                          border: `1px solid ${
+                            trendStats.recentMovement === "상승"
+                              ? "#bbf7d0"
+                              : trendStats.recentMovement === "하락"
+                              ? "#fecaca"
+                              : "#e2e8f0"
+                          }`,
+                          marginBottom: "16px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                          }}
+                        >
                           <div>
-                            <h4 style={{
-                              fontSize: "14px",
-                              fontWeight: "bold",
-                              color: trendStats.recentMovement === "상승" ? "#166534" : 
-                                     trendStats.recentMovement === "하락" ? "#dc2626" : "#374151",
-                              margin: "0 0 4px 0"
-                            }}>
-                              {trendStats.recentMovement === "상승" ? "📈" : 
-                               trendStats.recentMovement === "하락" ? "📉" : "📊"} 현재 트렌드: {trendStats.recentMovement}
+                            <h4
+                              style={{
+                                fontSize: "14px",
+                                fontWeight: "bold",
+                                color:
+                                  trendStats.recentMovement === "상승"
+                                    ? "#166534"
+                                    : trendStats.recentMovement === "하락"
+                                    ? "#dc2626"
+                                    : "#374151",
+                                margin: "0 0 4px 0",
+                              }}
+                            >
+                              {trendStats.recentMovement === "상승"
+                                ? "📈"
+                                : trendStats.recentMovement === "하락"
+                                ? "📉"
+                                : "📊"}{" "}
+                              현재 트렌드: {trendStats.recentMovement}
                             </h4>
-                            <p style={{ fontSize: "12px", color: "#6b7280", margin: "0" }}>
-                              최근 번호 패턴이 {trendStats.recentMovement} 추세를 보이고 있습니다
+                            <p
+                              style={{
+                                fontSize: "12px",
+                                color: "#6b7280",
+                                margin: "0",
+                              }}
+                            >
+                              최근 번호 패턴이 {trendStats.recentMovement}{" "}
+                              추세를 보이고 있습니다
                             </p>
                           </div>
-                          <div style={{
-                            padding: "8px 12px",
-                            backgroundColor: "white",
-                            borderRadius: "6px",
-                            textAlign: "center"
-                          }}>
-                            <div style={{
-                              fontSize: "16px",
-                              fontWeight: "bold",
-                              color: "#2563eb"
-                            }}>
+                          <div
+                            style={{
+                              padding: "8px 12px",
+                              backgroundColor: "white",
+                              borderRadius: "6px",
+                              textAlign: "center",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: "16px",
+                                fontWeight: "bold",
+                                color: "#2563eb",
+                              }}
+                            >
                               {trendStats.trendConfidence}%
                             </div>
                             <div style={{ fontSize: "10px", color: "#6b7280" }}>
@@ -1532,54 +1797,450 @@ const Stats: React.FC<StatsProps> = ({
 
                       {/* 계절별 트렌드 */}
                       {trendStats.seasonalTrends && (
-                        <div style={{
+                        <div
+                          style={{
+                            padding: "16px",
+                            backgroundColor: "white",
+                            borderRadius: "8px",
+                            border: "1px solid #e5e7eb",
+                            marginBottom: "16px",
+                          }}
+                        >
+                          <h4
+                            style={{
+                              fontSize: "14px",
+                              fontWeight: "bold",
+                              color: "#1f2937",
+                              margin: "0 0 12px 0",
+                            }}
+                          >
+                            🌅 계절별 패턴 분석
+                          </h4>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "8px",
+                            }}
+                          >
+                            {trendStats.seasonalTrends.map((season) => (
+                              <div
+                                key={season.season}
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  padding: "8px 12px",
+                                  backgroundColor: "#f8fafc",
+                                  borderRadius: "6px",
+                                  border: "1px solid #e2e8f0",
+                                }}
+                              >
+                                <div>
+                                  <span
+                                    style={{
+                                      fontSize: "12px",
+                                      fontWeight: "600",
+                                      color: "#374151",
+                                    }}
+                                  >
+                                    {season.season}
+                                  </span>
+                                  <div
+                                    style={{
+                                      fontSize: "10px",
+                                      color: "#6b7280",
+                                    }}
+                                  >
+                                    {season.characteristics}
+                                  </div>
+                                </div>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "8px",
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      width: `${season.frequency}px`,
+                                      height: "8px",
+                                      backgroundColor: "#3b82f6",
+                                      borderRadius: "4px",
+                                    }}
+                                  />
+                                  <span
+                                    style={{
+                                      fontSize: "11px",
+                                      color: "#2563eb",
+                                      fontWeight: "bold",
+                                    }}
+                                  >
+                                    {season.frequency}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 월별 트렌드 */}
+                      {trendStats.monthlyTrends && (
+                        <div
+                          style={{
+                            padding: "16px",
+                            backgroundColor: "white",
+                            borderRadius: "8px",
+                            border: "1px solid #e5e7eb",
+                            marginBottom: "16px",
+                          }}
+                        >
+                          <h4
+                            style={{
+                              fontSize: "14px",
+                              fontWeight: "bold",
+                              color: "#1f2937",
+                              margin: "0 0 12px 0",
+                            }}
+                          >
+                            📅 월별 패턴 분석
+                          </h4>
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "repeat(3, 1fr)",
+                              gap: "8px",
+                            }}
+                          >
+                            {trendStats.monthlyTrends
+                              .slice(0, 6)
+                              .map((month) => (
+                                <div
+                                  key={month.month}
+                                  style={{
+                                    padding: "8px",
+                                    backgroundColor: "#f8fafc",
+                                    borderRadius: "6px",
+                                    border: "1px solid #e2e8f0",
+                                    textAlign: "center",
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: "12px",
+                                      fontWeight: "600",
+                                      color: "#374151",
+                                      marginBottom: "4px",
+                                    }}
+                                  >
+                                    {month.month}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: "16px",
+                                      fontWeight: "bold",
+                                      color: "#2563eb",
+                                      marginBottom: "4px",
+                                    }}
+                                  >
+                                    {month.frequency}
+                                  </div>
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      gap: "2px",
+                                      justifyContent: "center",
+                                    }}
+                                  >
+                                    {month.numbers.map((num) => (
+                                      <div
+                                        key={num}
+                                        style={{
+                                          width: "12px",
+                                          height: "12px",
+                                          borderRadius: "50%",
+                                          backgroundColor: "#3b82f6",
+                                          color: "white",
+                                          fontSize: "8px",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                        }}
+                                      >
+                                        {num}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ textAlign: "center", padding: "40px 20px" }}>
+                      <p
+                        style={{
+                          color: "#6b7280",
+                          margin: "0",
+                          fontSize: "14px",
+                        }}
+                      >
+                        트렌드 데이터를 분석 중입니다...
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 당첨금 분석 */}
+              {activeTab === "prizes" && (
+                <div>
+                  <h3
+                    style={{
+                      fontSize: "16px",
+                      fontWeight: "bold",
+                      color: "#1f2937",
+                      margin: "0 0 16px 0",
+                    }}
+                  >
+                    💰 당첨금 통계 분석
+                  </h3>
+
+                  {prizeStats ? (
+                    <>
+                      {/* 당첨금 요약 */}
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(2, 1fr)",
+                          gap: "12px",
+                          marginBottom: "16px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            padding: "16px",
+                            backgroundColor: "#f0fdf4",
+                            borderRadius: "8px",
+                            border: "1px solid #bbf7d0",
+                            textAlign: "center",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "20px",
+                              fontWeight: "bold",
+                              color: "#166534",
+                              marginBottom: "4px",
+                            }}
+                          >
+                            {formatPrice(prizeStats.avgPrize)}
+                          </div>
+                          <div style={{ fontSize: "12px", color: "#16a34a" }}>
+                            평균 1등 당첨금
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            padding: "16px",
+                            backgroundColor: "#fef3c7",
+                            borderRadius: "8px",
+                            border: "1px solid #fcd34d",
+                            textAlign: "center",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "20px",
+                              fontWeight: "bold",
+                              color: "#92400e",
+                              marginBottom: "4px",
+                            }}
+                          >
+                            {formatPrice(prizeStats.maxPrize)}
+                          </div>
+                          <div style={{ fontSize: "12px", color: "#a16207" }}>
+                            역대 최고 당첨금
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 당첨금 구간별 분포 */}
+                      <div
+                        style={{
                           padding: "16px",
                           backgroundColor: "white",
                           borderRadius: "8px",
                           border: "1px solid #e5e7eb",
-                          marginBottom: "16px"
-                        }}>
-                          <h4 style={{
+                          marginBottom: "16px",
+                        }}
+                      >
+                        <h4
+                          style={{
                             fontSize: "14px",
                             fontWeight: "bold",
                             color: "#1f2937",
-                            margin: "0 0 12px 0"
-                          }}>
-                            🌅 계절별 패턴 분석
-                          </h4>
-                          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                            {trendStats.seasonalTrends.map(season => (
-                              <div key={season.season} style={{
+                            margin: "0 0 12px 0",
+                          }}
+                        >
+                          📊 당첨금 구간별 분포
+                        </h4>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "8px",
+                          }}
+                        >
+                          {prizeStats.prizeDistribution.map((dist) => (
+                            <div
+                              key={dist.range}
+                              style={{
                                 display: "flex",
                                 justifyContent: "space-between",
                                 alignItems: "center",
                                 padding: "8px 12px",
                                 backgroundColor: "#f8fafc",
                                 borderRadius: "6px",
-                                border: "1px solid #e2e8f0"
-                              }}>
-                                <div>
-                                  <span style={{ fontSize: "12px", fontWeight: "600", color: "#374151" }}>
-                                    {season.season}
-                                  </span>
-                                  <div style={{ fontSize: "10px", color: "#6b7280" }}>
-                                    {season.characteristics}
-                                  </div>
-                                </div>
-                                <div style={{
+                                border: "1px solid #e2e8f0",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: "12px",
+                                  fontWeight: "600",
+                                  color: "#374151",
+                                }}
+                              >
+                                {dist.range}
+                              </span>
+                              <div
+                                style={{
                                   display: "flex",
                                   alignItems: "center",
-                                  gap: "8px"
-                                }}>
-                                  <div style={{
-                                    width: `${season.frequency}px`,
+                                  gap: "8px",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: `${dist.percentage * 2}px`,
                                     height: "8px",
                                     backgroundColor: "#3b82f6",
-                                    borderRadius: "4px"
-                                  }} />
-                                  <span style={{ fontSize: "11px", color: "#2563eb", fontWeight: "bold" }}>
-                                    {season.frequency}
-                                  </span>
-                                </div>
+                                    borderRadius: "4px",
+                                  }}
+                                />
+                                <span
+                                  style={{
+                                    fontSize: "11px",
+                                    color: "#2563eb",
+                                    fontWeight: "bold",
+                                  }}
+                                >
+                                  {dist.count}회 ({dist.percentage}%)
+                                </span>
                               </div>
-                            ))}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* 당첨자 수 분포 */}
+                      <div
+                        style={{
+                          padding: "16px",
+                          backgroundColor: "white",
+                          borderRadius: "8px",
+                          border: "1px solid #e5e7eb",
+                        }}
+                      >
+                        <h4
+                          style={{
+                            fontSize: "14px",
+                            fontWeight: "bold",
+                            color: "#1f2937",
+                            margin: "0 0 12px 0",
+                          }}
+                        >
+                          👥 1등 당첨자 수 분포
+                        </h4>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "8px",
+                            justifyContent: "space-around",
+                          }}
+                        >
+                          {prizeStats.winnerDistribution.map((winner) => (
+                            <div
+                              key={winner.count}
+                              style={{
+                                padding: "12px 8px",
+                                backgroundColor: "#f0f9ff",
+                                borderRadius: "6px",
+                                border: "1px solid #bfdbfe",
+                                textAlign: "center",
+                                flex: 1,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontSize: "18px",
+                                  fontWeight: "bold",
+                                  color: "#2563eb",
+                                  marginBottom: "4px",
+                                }}
+                              >
+                                {winner.count}명
+                              </div>
+                              <div
+                                style={{ fontSize: "10px", color: "#1e40af" }}
+                              >
+                                {winner.frequency}%
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ textAlign: "center", padding: "40px 20px" }}>
+                      <p
+                        style={{
+                          color: "#6b7280",
+                          margin: "0",
+                          fontSize: "14px",
+                        }}
+                      >
+                        당첨금 데이터를 분석 중입니다...
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* CSS 애니메이션 */}
+      <style>
+        {`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+          @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+          }
+        `}
+      </style>
+    </div>
+  );
+};
+
+export default Stats;
