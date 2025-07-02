@@ -25,6 +25,9 @@ interface CheckResult {
   grade: string;
   matches: number;
   bonusMatch: boolean;
+  status: "winning" | "losing" | "pending"; // 추첨전 상태 추가
+  drawDate?: string; // 추첨일 정보 추가
+  message?: string; // 추가 메시지
 }
 
 const Purchase: React.FC<PurchaseProps> = ({
@@ -37,7 +40,7 @@ const Purchase: React.FC<PurchaseProps> = ({
 }) => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedNumbers, setSelectedNumbers] = useState<number[]>([]);
-  const [memo, setMemo] = useState("");
+
   const [isAutoSelect, setIsAutoSelect] = useState(false);
   const [filter, setFilter] = useState<
     "all" | "saved" | "favorite" | "checked"
@@ -68,6 +71,10 @@ const Purchase: React.FC<PurchaseProps> = ({
       red: "#fee2e2",
       redBorder: "#fecaca",
       redText: "#dc2626",
+      // 추첨전 상태 색상 추가
+      pending: "#f0f9ff",
+      pendingBorder: "#bfdbfe",
+      pendingText: "#1e40af",
     },
     dark: {
       background: "#0f172a",
@@ -91,6 +98,10 @@ const Purchase: React.FC<PurchaseProps> = ({
       red: "#7f1d1d",
       redBorder: "#dc2626",
       redText: "#fca5a5",
+      // 추첨전 상태 색상 추가 (다크모드)
+      pending: "#1e3a8a",
+      pendingBorder: "#3b82f6",
+      pendingText: "#93c5fd",
     },
   };
 
@@ -100,6 +111,51 @@ const Purchase: React.FC<PurchaseProps> = ({
   useEffect(() => {
     setLocalHistory(purchaseHistory);
   }, [purchaseHistory]);
+
+  // 📅 등록일 기준으로 다음 추첨일 계산 (매주 토요일)
+  const getNextDrawDate = (registrationDate: string): Date => {
+    const regDate = new Date(registrationDate);
+    const dayOfWeek = regDate.getDay(); // 0: 일요일, 6: 토요일
+    
+    // 등록일 이후 다음 토요일 계산
+    let daysUntilSaturday = (6 - dayOfWeek) % 7;
+    if (daysUntilSaturday === 0 && regDate.getHours() >= 20) {
+      // 토요일 오후 8시 이후라면 다음 주 토요일
+      daysUntilSaturday = 7;
+    }
+    if (daysUntilSaturday === 0) {
+      // 토요일이지만 추첨 전이라면 당일
+      daysUntilSaturday = 0;
+    }
+    
+    const drawDate = new Date(regDate);
+    drawDate.setDate(regDate.getDate() + daysUntilSaturday);
+    drawDate.setHours(20, 45, 0, 0); // 오후 8시 45분
+    
+    return drawDate;
+  };
+
+  // 📅 추첨일이 지났는지 확인
+  const isDrawCompleted = (drawDate: Date): boolean => {
+    const now = new Date();
+    return now > drawDate;
+  };
+
+  // 📅 날짜 형식 변환 함수 개선
+  const parseRegistrationDate = (dateStr: string): Date => {
+    // "2025.7.2" 또는 "2025-07-02" 형식 처리
+    if (dateStr.includes('.')) {
+      const [year, month, day] = dateStr.split('.').map(Number);
+      return new Date(year, month - 1, day); // month는 0-based
+    } else if (dateStr.includes('-')) {
+      return new Date(dateStr);
+    } else if (dateStr.includes('/')) {
+      return new Date(dateStr);
+    } else {
+      // 기본적으로 한국 날짜 형식으로 파싱 시도
+      return new Date(dateStr);
+    }
+  };
 
   // 상태 변경 함수
   const changeItemStatus = (
@@ -190,32 +246,89 @@ const Purchase: React.FC<PurchaseProps> = ({
 
       onAdd(selectedNumbers, strategyName);
       setSelectedNumbers([]);
-      setMemo("");
       setIsAutoSelect(false);
       setShowAddForm(false);
     }
   };
 
-  // 당첨 확인
-  const checkWinning = (userNumbers: number[]): CheckResult => {
-    const latestWinning = pastWinningNumbers[0];
-    const mainNumbers = latestWinning.slice(0, 6);
-    const bonusNumber = latestWinning[6];
+  // 🎯 당첨 확인 로직 개선 (추첨일 확인 포함)
+  const checkWinning = (userNumbers: number[], registrationDate: string): CheckResult => {
+    try {
+      // 등록일 파싱
+      const regDate = parseRegistrationDate(registrationDate);
+      const drawDate = getNextDrawDate(registrationDate);
+      const isCompleted = isDrawCompleted(drawDate);
 
-    const matches = userNumbers.filter((num) =>
-      mainNumbers.includes(num)
-    ).length;
-    const bonusMatch = userNumbers.includes(bonusNumber);
+      // 추첨일 정보
+      const drawDateStr = drawDate.toLocaleDateString('ko-KR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long'
+      });
 
-    let grade = "";
-    if (matches === 6) grade = "1등";
-    else if (matches === 5 && bonusMatch) grade = "2등";
-    else if (matches === 5) grade = "3등";
-    else if (matches === 4) grade = "4등";
-    else if (matches === 3) grade = "5등";
-    else grade = "낙첨";
+      // 📅 추첨일이 지나지 않았으면 "추첨전" 상태 반환
+      if (!isCompleted) {
+        const now = new Date();
+        const diffTime = drawDate.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        let timeMessage = "";
+        if (diffDays === 0) {
+          timeMessage = "오늘 오후 8시 45분 추첨";
+        } else if (diffDays === 1) {
+          timeMessage = "내일 추첨";
+        } else {
+          timeMessage = `${diffDays}일 후 추첨`;
+        }
 
-    return { grade, matches, bonusMatch };
+        return {
+          grade: "추첨전",
+          matches: 0,
+          bonusMatch: false,
+          status: "pending",
+          drawDate: drawDateStr,
+          message: timeMessage
+        };
+      }
+
+      // 🎯 추첨일이 지났으면 실제 당첨 확인
+      const latestWinning = pastWinningNumbers[0];
+      const mainNumbers = latestWinning.slice(0, 6);
+      const bonusNumber = latestWinning[6];
+
+      const matches = userNumbers.filter((num) =>
+        mainNumbers.includes(num)
+      ).length;
+      const bonusMatch = userNumbers.includes(bonusNumber);
+
+      let grade = "";
+      if (matches === 6) grade = "1등";
+      else if (matches === 5 && bonusMatch) grade = "2등";
+      else if (matches === 5) grade = "3등";
+      else if (matches === 4) grade = "4등";
+      else if (matches === 3) grade = "5등";
+      else grade = "낙첨";
+
+      return {
+        grade,
+        matches,
+        bonusMatch,
+        status: grade !== "낙첨" ? "winning" : "losing",
+        drawDate: drawDateStr,
+        message: `${matches}개 일치${bonusMatch ? " + 보너스" : ""}`
+      };
+
+    } catch (error) {
+      console.error("당첨 확인 중 오류:", error);
+      return {
+        grade: "확인불가",
+        matches: 0,
+        bonusMatch: false,
+        status: "losing",
+        message: "날짜 형식 오류"
+      };
+    }
   };
 
   // 번호 복사
@@ -239,29 +352,31 @@ const Purchase: React.FC<PurchaseProps> = ({
       };
     }
 
-    const winners = checkedItems.filter((item) => {
-      const result = checkWinning(item.numbers);
-      return result.grade !== "낙첨";
-    });
+    const results = checkedItems.map(item => checkWinning(item.numbers, item.date));
+    const winners = results.filter(result => result.status === "winning");
+    const pending = results.filter(result => result.status === "pending");
+
+    if (pending.length > 0) {
+      return {
+        icon: "⏰",
+        title: `${pending.length}개 번호가 추첨 대기중입니다`,
+        description: "추첨일이 되면 결과를 확인할 수 있어요!",
+      };
+    }
 
     if (winners.length > 0) {
       const bestWinner = winners.reduce((best, current) => {
-        const bestResult = checkWinning(best.numbers);
-        const currentResult = checkWinning(current.numbers);
         const gradeOrder = { "1등": 1, "2등": 2, "3등": 3, "4등": 4, "5등": 5 };
-        return gradeOrder[currentResult.grade as keyof typeof gradeOrder] <
-          gradeOrder[bestResult.grade as keyof typeof gradeOrder]
+        return gradeOrder[current.grade as keyof typeof gradeOrder] <
+          gradeOrder[best.grade as keyof typeof gradeOrder]
           ? current
           : best;
       });
-      const result = checkWinning(bestWinner.numbers);
 
       return {
         icon: "🎉",
-        title: `축하합니다! ${result.grade} 당첨입니다!`,
-        description: `${result.matches}개 번호가 일치했어요${
-          result.bonusMatch ? " (보너스 포함)" : ""
-        }`,
+        title: `축하합니다! ${bestWinner.grade} 당첨입니다!`,
+        description: bestWinner.message || "",
       };
     } else {
       return {
@@ -883,52 +998,12 @@ const Purchase: React.FC<PurchaseProps> = ({
             </div>
           </div>
 
-          {/* 메모 입력 */}
-          <div
-            style={{
-              marginBottom: "16px",
-              padding: "12px",
-              backgroundColor: currentColors.gray,
-              borderRadius: "8px",
-              border: `1px solid ${currentColors.grayBorder}`,
-            }}
-          >
-            <label
-              style={{
-                display: "block",
-                fontSize: "12px",
-                fontWeight: "600",
-                color: currentColors.text,
-                marginBottom: "6px",
-              }}
-            >
-              📝 메모 (선택사항)
-            </label>
-            <input
-              type="text"
-              value={memo}
-              onChange={(e) => setMemo(e.target.value)}
-              placeholder="예: 행운의 번호, 신촌에서 구매 예정"
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                border: `1px solid ${currentColors.border}`,
-                borderRadius: "6px",
-                fontSize: "12px",
-                boxSizing: "border-box",
-                backgroundColor: currentColors.surface,
-                color: currentColors.text,
-              }}
-            />
-          </div>
-
           {/* 저장/취소 버튼 */}
           <div style={{ display: "flex", gap: "8px" }}>
             <button
               onClick={() => {
                 setShowAddForm(false);
                 setSelectedNumbers([]);
-                setMemo("");
                 setIsAutoSelect(false);
               }}
               style={{
@@ -1020,6 +1095,52 @@ const Purchase: React.FC<PurchaseProps> = ({
                 </>
               );
             })()
+          ) : filter === "favorite" ? (
+            <>
+              <div style={{ fontSize: "48px", marginBottom: "12px" }}>⭐</div>
+              <p
+                style={{
+                  fontSize: "16px",
+                  fontWeight: "bold",
+                  color: currentColors.text,
+                  margin: "0 0 6px 0",
+                }}
+              >
+                즐겨찾기한 번호가 없어요
+              </p>
+              <p
+                style={{
+                  color: currentColors.textSecondary,
+                  margin: "0",
+                  fontSize: "14px",
+                }}
+              >
+                번호를 등록하고 ⭐ 버튼을 눌러 즐겨찾기하세요!
+              </p>
+            </>
+          ) : filter === "saved" ? (
+            <>
+              <div style={{ fontSize: "48px", marginBottom: "12px" }}>💾</div>
+              <p
+                style={{
+                  fontSize: "16px",
+                  fontWeight: "bold",
+                  color: currentColors.text,
+                  margin: "0 0 6px 0",
+                }}
+              >
+                저장된 번호가 없어요
+              </p>
+              <p
+                style={{
+                  color: currentColors.textSecondary,
+                  margin: "0",
+                  fontSize: "14px",
+                }}
+              >
+                새 번호를 등록해보세요!
+              </p>
+            </>
           ) : (
             <>
               <div style={{ fontSize: "48px", marginBottom: "12px" }}>📋</div>
@@ -1048,8 +1169,9 @@ const Purchase: React.FC<PurchaseProps> = ({
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {filteredHistory.map((item) => {
-            const result = item.checked ? checkWinning(item.numbers) : null;
-            const isWinner = result && result.grade !== "낙첨";
+            const result = item.checked ? checkWinning(item.numbers, item.date) : null;
+            const isWinner = result && result.status === "winning";
+            const isPending = result && result.status === "pending";
 
             return (
               <div
@@ -1060,9 +1182,13 @@ const Purchase: React.FC<PurchaseProps> = ({
                   padding: "12px",
                   border: isWinner
                     ? `2px solid ${currentColors.accent}`
+                    : isPending
+                    ? `2px solid ${currentColors.pendingBorder}`
                     : `1px solid ${currentColors.border}`,
                   boxShadow: isWinner
                     ? `0 2px 8px ${currentColors.accent}30`
+                    : isPending
+                    ? `0 2px 8px ${currentColors.pendingBorder}30`
                     : "none",
                 }}
               >
@@ -1098,7 +1224,9 @@ const Purchase: React.FC<PurchaseProps> = ({
                         <span style={{ fontSize: "14px" }}>⭐</span>
                       )}
                       {item.status === "checked" && (
-                        <span style={{ fontSize: "14px" }}>✅</span>
+                        <span style={{ fontSize: "14px" }}>
+                          {isPending ? "⏰" : "✅"}
+                        </span>
                       )}
                     </div>
                     <p
@@ -1109,6 +1237,12 @@ const Purchase: React.FC<PurchaseProps> = ({
                       }}
                     >
                       {item.date} 등록
+                      {/* 📅 추첨일 정보 표시 */}
+                      {result && result.drawDate && (
+                        <span style={{ marginLeft: "8px", fontSize: "11px" }}>
+                          | 추첨: {result.drawDate.split(' ').slice(0, 3).join(' ')}
+                        </span>
+                      )}
                     </p>
                   </div>
 
@@ -1159,26 +1293,26 @@ const Purchase: React.FC<PurchaseProps> = ({
                       복사
                     </button>
 
-                    {/* 당첨확인 버튼 */}
+                    {/* 당첨확인 버튼 - 추첨 대기중이면 계속 활성화 */}
                     <button
                       onClick={() => {
                         onCheck(item.id, item.numbers);
                         changeItemStatus(item.id, "checked");
                       }}
-                      disabled={item.checked}
+                      disabled={item.checked && !isPending}
                       style={{
                         padding: "4px 8px",
-                        backgroundColor: item.checked
+                        backgroundColor: (item.checked && !isPending)
                           ? currentColors.textSecondary
                           : currentColors.accent,
                         color: "white",
                         borderRadius: "4px",
                         border: "none",
                         fontSize: "12px",
-                        cursor: item.checked ? "not-allowed" : "pointer",
+                        cursor: (item.checked && !isPending) ? "not-allowed" : "pointer",
                       }}
                     >
-                      {item.checked ? "확인완료" : "당첨확인"}
+                      {(item.checked && !isPending) ? "확인완료" : "당첨확인"}
                     </button>
 
                     {/* 삭제 버튼 */}
@@ -1224,7 +1358,7 @@ const Purchase: React.FC<PurchaseProps> = ({
                       number={num}
                       size="sm"
                       isMatched={
-                        result
+                        result && result.status !== "pending"
                           ? pastWinningNumbers[0].slice(0, 7).includes(num)
                           : false
                       }
@@ -1232,16 +1366,20 @@ const Purchase: React.FC<PurchaseProps> = ({
                   ))}
                 </div>
 
-                {/* 당첨 결과 */}
+                {/* 🎯 개선된 당첨 결과 표시 */}
                 {result && (
                   <div
                     style={{
                       padding: "8px",
-                      backgroundColor: isWinner
+                      backgroundColor: isPending
+                        ? currentColors.pending
+                        : isWinner
                         ? currentColors.success
                         : currentColors.error,
                       borderRadius: "6px",
-                      border: isWinner
+                      border: isPending
+                        ? `1px solid ${currentColors.pendingBorder}`
+                        : isWinner
                         ? `1px solid ${currentColors.successBorder}`
                         : `1px solid ${currentColors.errorBorder}`,
                       textAlign: "center",
@@ -1251,25 +1389,43 @@ const Purchase: React.FC<PurchaseProps> = ({
                       style={{
                         fontSize: "14px",
                         fontWeight: "bold",
-                        color: isWinner
+                        color: isPending
+                          ? currentColors.pendingText
+                          : isWinner
                           ? currentColors.successText
                           : currentColors.errorText,
                       }}
                     >
-                      {result.grade === "낙첨"
+                      {isPending
+                        ? "⏰ 추첨 대기중"
+                        : result.grade === "낙첨"
                         ? "😔 낙첨"
                         : `🎉 ${result.grade} 당첨!`}
                     </span>
-                    {result.grade !== "낙첨" && (
+                    <p
+                      style={{
+                        fontSize: "12px",
+                        color: isPending
+                          ? currentColors.pendingText
+                          : isWinner
+                          ? currentColors.successText
+                          : currentColors.errorText,
+                        margin: "2px 0 0 0",
+                      }}
+                    >
+                      {result.message}
+                    </p>
+                    {/* 📅 추첨일 정보 */}
+                    {isPending && (
                       <p
                         style={{
-                          fontSize: "12px",
-                          color: currentColors.successText,
-                          margin: "2px 0 0 0",
+                          fontSize: "11px",
+                          color: currentColors.pendingText,
+                          margin: "4px 0 0 0",
+                          opacity: 0.8,
                         }}
                       >
-                        {result.matches}개 일치
-                        {result.bonusMatch && " + 보너스"}
+                        {result.drawDate}
                       </p>
                     )}
                   </div>
